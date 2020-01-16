@@ -30,6 +30,8 @@ def getToken(tb_url, user, passwd, print_token = False):
     else:
         bearerToken = ''
         refreshToken = ''
+        print(f"ERROR {tokenAuthResp.status}: {tokenAuthResp.error}")
+        print(tokenAuthResp.message)
     if print_token:
         print("Bearer token:")
         print(bearerToken)
@@ -65,8 +67,8 @@ def getTimeseries(tb_url, deviceId, bearerToken, keys, startTs, endTs, limit=100
     keys - an iterable like ['temperature', 'humidity']
     startTs, endTs - JavaScript integer timestamp
     '''
-    params = {'keys': ','.join(keys), 'startTs': startTs, 'endTs': endTs,
-              'limit': limit, 'interval': interval, 'agg': agg}
+    params = { 'keys': ','.join(keys), 'startTs': startTs, 'endTs': endTs,
+               'limit': limit, 'interval': interval, 'agg': agg }
     url = tb_url + '/api/plugins/telemetry/DEVICE/' + deviceId + '/values/timeseries'
     headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}
     resp = requests.get(url, headers=headers, params=params)
@@ -137,8 +139,24 @@ def upload_attributes(tb_url, bearerToken, entityId, entityType, scope, attribut
     resp = requests.post(url, headers=headers, json=attributes)
     return resp
 
-def get_attribute_values(tb_url, bearerToken, entityType, entityId, scope, keys=None):
-    url = f'{tb_url}/api/plugins/telemetry/{entityType}/{entityId}/values/attributes/{scope}'
+def get_attribute_keys(tb_url, bearerToken, entity_id, entity_type, scope = None):
+    url = tb_url + f'/api/plugins/telemetry/{entity_type}/{entity_id}/keys/attributes'
+    if scope:
+        url = url + f'/{scope}'        
+    headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}
+    resp = requests.get(url, headers=headers)
+    if resp.status_code == 200:
+        return resp.json(), resp
+    else:
+        return [], resp
+
+ATTR_SCOPES = {'SERVER_SCOPE', 'CLIENT_SCOPE', 'SHARED_SCOPE'}
+
+def get_attribute_values(tb_url, bearerToken, entity_id, entity_type, scope=None, keys=None):
+    if scope:
+        url = f'{tb_url}/api/plugins/telemetry/{entity_type}/{entity_id}/values/attributes/{scope}'
+    else:
+        url = f'{tb_url}/api/plugins/telemetry/{entity_type}/{entity_id}/values/attributes'
     headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}
     if keys:
         params = {'keys':keys}
@@ -156,6 +174,20 @@ def list_tenant_assets(tb_url, bearerToken, assetType=None, limit = 100, textSea
     params = {'limit':limit}
     if assetType:
         params['type']=assetType
+    if textSearch:
+        params['textSearch'] = textSearch
+    headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}  
+    resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json()['data'], resp 
+    else:
+        return [], resp
+
+def get_tenant_devices(tb_url, bearerToken, deviceType=None, limit = 100, textSearch = None):
+    url = f'{tb_url}/api/tenant/devices'
+    params = {'limit':limit}
+    if deviceType:
+        params['type']=deviceType
     if textSearch:
         params['textSearch'] = textSearch
     headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}  
@@ -257,6 +289,61 @@ tenantId, customerId, deviceType, info="" , createdTime = toJsTimestamp(datetime
         return [], resp
     pass
 
+def get_tenants(tb_url, bearerToken):
+    url = f"{tb_url}/api/tenants"
+    headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    params = {'limit': 100}
+    resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json()['data']
+    else:
+        print('Error: ' + str(resp.status_code))
+        return []
+
+def get_customers(tb_url, bearerToken):
+    url = f"{tb_url}/api/customers"
+    headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    params = {'limit': 100}
+    resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json()['data']
+    else:
+        print('Error: ' + str(resp.status_code))
+        return [], resp
+
+def get_relations(tb_url, bearerToken, fromId, fromType, relationType = None):
+    url = f"{tb_url}/api/relations"
+    headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    params = {'fromId': fromId, 'fromType': fromType}
+    if relationType:
+        params['relationType'] = relationType
+    resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json(), resp
+    else:
+        print('Error: ' + str(resp.status_code))
+        return [], resp
+
+def list_tenant_dashboards(tb_url, bearerToken, limit = 100):
+    url = f"{tb_url}/api/tenant/dashboards"
+    headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    params = {'limit': limit}
+    resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json()['data'], resp
+    else:
+        print('Error: ' + str(resp.status_code))
+        return [], resp
+
+def get_dashboard(tb_url, bearerToken, dashboard_id):
+    url = f"{tb_url}/api/dashboard/{dashboard_id}"
+    headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    resp = requests.get(url, headers=headers)
+    if resp.status_code == 200:
+        return resp.json(), resp
+    else:
+        print('Error: ' + str(resp.status_code))
+        return [], resp
 
 
 

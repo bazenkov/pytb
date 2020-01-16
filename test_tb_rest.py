@@ -1,6 +1,6 @@
 from tb_rest import *
 
-TB_ACCESS_FILE = "tb_test_params.txt"
+TB_ACCESS_FILE = "tb_test_params.access"
 
 def test_get_attributes():
     params = load_access_parameters(TB_ACCESS_FILE)
