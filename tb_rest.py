@@ -1,8 +1,10 @@
 # Import smtplib for the actual sending function
 import urllib.request
 import requests
-import datetime
+import datetime as dt
 import time
+import os.path as path
+import os as os
 
 
 # authorization
@@ -30,7 +32,7 @@ def getToken(tb_url, user, passwd, print_token = False):
     else:
         bearerToken = ''
         refreshToken = ''
-        print(f"ERROR {tokenAuthResp.status}: {tokenAuthResp.error}")
+        print(f"ERROR {tokenAuthResp['status']}: {tokenAuthResp['error']}")
         print(tokenAuthResp.message)
     if print_token:
         print("Bearer token:")
@@ -38,6 +40,44 @@ def getToken(tb_url, user, passwd, print_token = False):
         print("Refresh token:")
         print(refreshToken)
     return bearerToken, refreshToken, tokenAuthResp
+
+DEFAULT_TOKEN_FILE = "token.access"
+TOKEN_EXPIRES = dt.timedelta(minutes=10)
+
+def save_params(params_file, params):
+    with open(params_file, 'w') as file:
+        for k in params.keys():
+            file.write(f"{k}={params[k]}\n")
+
+def get_token(tb_url, tb_user, tb_password, token_file = DEFAULT_TOKEN_FILE):
+    '''
+    The token file contains key-value pairs:
+    token = TOKEN STRING
+    expires = DATETIME STRING
+
+    If the token file is specified then the token is loaded from it.
+    If the expiration time is reached, the function gets the new token from thingsboard server and saves it to the token file.
+    '''
+    #load from token file, if it exists
+    #if path.exists(token_file):
+    #    params = load_access_parameters(token_file)
+    #    token = params['token']
+    #    expire_time = dt.datetime.fromisoformat(params['expires'])
+    #    if is_expired(expire_time):
+    #        token, expire_time = new_token(tb_url, tb_user, tb_password)
+    #else:
+    token, expire_time = new_token(tb_url, tb_user, tb_password)
+    return token, expire_time
+
+def new_token(tb_url, tb_user, tb_password, token_file = DEFAULT_TOKEN_FILE):
+    token = getToken(tb_url, tb_user, tb_password)[0]
+    expire_time = dt.datetime.now() + TOKEN_EXPIRES 
+    params = {'token': token, 'expires':expire_time }
+    save_params(token_file, params)
+    return token, expire_time
+
+def is_expired(expire_time):
+    return expire_time < dt.datetime.now()
 
 def refresh_token(tb_url, bearerToken, refreshToken):
     REFRESH_URL = '/api/auth/token'
@@ -90,7 +130,7 @@ def upload_telemetry(tb_url, deviceToken, json_data):
     return resp
 
 def create_asset(tb_url, bearerToken, name, 
-tenantId, customerId, assetType, info="" , createdTime = toJsTimestamp(datetime.datetime.now().timestamp())):
+tenantId, customerId, assetType, info="" , createdTime = toJsTimestamp(dt.datetime.now().timestamp())):
     ''' Example of json for NEW asset:
       {
       "additionalInfo": "Info",
@@ -249,7 +289,7 @@ def get_device_credentials(tb_url, jwtToken, device_id):
         return []
 
 def create_device(tb_url, bearerToken, name, 
-tenantId, customerId, deviceType, info="" , createdTime = toJsTimestamp(datetime.datetime.now().timestamp())):
+tenantId, customerId, deviceType, info="" , createdTime = toJsTimestamp(dt.datetime.now().timestamp())):
     ''' Example of json for NEW device:
       {
       "additionalInfo": "Info",
@@ -288,6 +328,15 @@ tenantId, customerId, deviceType, info="" , createdTime = toJsTimestamp(datetime
     else:
         return [], resp
     pass
+
+def post_device(tb_url, bearerToken, device_json):
+    url = tb_url + '/api/device'
+    headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    resp = requests.post(url, headers = headers, json = device_json)
+    if resp.status_code == 200:
+        return resp.json(), resp
+    else:
+        return [], resp
 
 def get_tenants(tb_url, bearerToken):
     url = f"{tb_url}/api/tenants"

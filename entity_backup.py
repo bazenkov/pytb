@@ -20,46 +20,8 @@ def json_format(json_str):
     json_str = json_str.replace('\": False', '\": false')
     return json_str
 
-DEFAULT_TOKEN_FILE = "token.access"
-TOKEN_EXPIRES = dt.timedelta(minutes=10)
-
-def save_params(params_file, params):
-    with open(params_file, 'w') as file:
-        for k in params.keys():
-            file.write(f"{k}={params[k]}\n")
-
-def get_token(tb_url, tb_user, tb_password, token_file = DEFAULT_TOKEN_FILE):
-    '''
-    The token file contains key-value pairs:
-    token = TOKEN STRING
-    expires = DATETIME STRING
-
-    If the token file is specified then the token is loaded from it.
-    If the expiration time is reached, the function gets the new token from thingsboard server and saves it to the token file.
-    '''
-    #load from token file, if it exists
-    if path.exists(token_file):
-        params = tb.load_access_parameters(token_file)
-        token = params['token']
-        expire_time = dt.datetime.fromisoformat(params['expires'])
-        if is_expired(expire_time):
-            token, expire_time = new_token(tb_url, tb_user, tb_password)
-    else:
-        token, expire_time = new_token(tb_url, tb_user, tb_password)
-    return token, expire_time
-
-def new_token(tb_url, tb_user, tb_password, token_file = DEFAULT_TOKEN_FILE):
-    token = tb.getToken(tb_url, tb_user, tb_password)[0]
-    expire_time = dt.datetime.now() + TOKEN_EXPIRES 
-    params = {'token': token, 'expires':expire_time }
-    save_params(token_file, params)
-    return token, expire_time
-
-def is_expired(expire_time):
-    return expire_time < dt.datetime.now()
-
 def save_entities(file, entities_list):
-    with open(file, 'w') as file:
+    with open(file, 'w', encoding='utf-8') as file:
         json_str = json_format(str(entities_list))
         file.write(json_str)
 
@@ -70,6 +32,7 @@ def save_tenants(tb_url, admin_user, admin_password, save_file):
     bearerToken, refreshToken = tb.getToken(tb_url, admin_user, admin_password)[0:2]
     tenants_list = tb.get_tenants(tb_url, bearerToken)
     save_entities(save_file, tenants_list)
+    return tenants_list
 
 def save_customers(tb_url, save_file, tenant_admin_user=None, password=None, token=None):
     """
@@ -152,19 +115,20 @@ def save_attributes(tb_url, entity_list, save_file, token):
     save_entities(save_file, all_attributes_list)
     return all_attributes_list     
 
-def save_dashboards(tb_url, save_file, token):
+def save_dashboards(tb_url, save_dir, token):
     print("Loading dashboards...")
     dashboards, resp = tb.list_tenant_dashboards(tb_url, token)
     if dashboards:
         print(f"{len(dashboards)} dashboards loaded.")
-        save_entities(save_file, dashboards)
-        print(f"Dashboards successfully saved to {save_file}")
+    #    save_entities(save_file, dashboards)
+    #    print(f"Dashboards successfully saved to {save_file}")
     else:
         print("FAILURE: dashboards were not loaded")
         print(f"Response status: {resp.status_code}")
         print(resp.json())
     db_info_list = []
-    for db in dashboards:
+    check_dir(save_dir)
+    for i, db in enumerate(dashboards):
         db_info, resp = tb.get_dashboard(tb_url, token, db['id']['id'])
         if db_info:
             db_info_list.append(db_info)
@@ -172,11 +136,11 @@ def save_dashboards(tb_url, save_file, token):
             print(f"FAILURE: dashboard {db['id']['id']} was not loaded")
             print(f"Response status: {resp.status_code}")
             print(resp.json())
-    save_entities(save_file, db_info_list)
+        save_file = save_dir + '/' + f"{str(i)}.json"
+        save_entities(save_file, db_info)
     return db_info_list
 
-#TB_ACCESS_FILE = "tb.access"
-TB_ACCESS_FILE = "tb_lab11.access"
+
 
 files = {'TENANT': "tenants.json",
          'ASSET': "assets.json",
@@ -184,27 +148,56 @@ files = {'TENANT': "tenants.json",
          'RELATION': "relations.json",
          'CUSTOMER': "customers.json",
          'ATTRIBUTE': "attributes.json",
-         'DASHBOARD': "dashboards.json"}
+         'DASHBOARD': "dashboards"}
 
-if __name__ == "__main__":
-    folder = "lab_11"
+def check_dir(folder):
     if not path.exists(folder):
         os.mkdir(folder)
-    def mkpath(entity_name):
+
+def prepare_tenant_dir(folder, tenant):
+    tenant_dir = folder + "/" + tenant['name']
+    check_dir(tenant_dir)
+    tenant_access_file = tenant_dir + "/.access"
+    tenant_params = tb.load_access_parameters(tenant_access_file)
+    tenant_user, tenant_pass = tenant_params['user'], tenant_params['password']
+    return tenant_dir, tenant_user, tenant_pass
+
+def mkpath(folder, entity_name):
         return folder + '/' + files[entity_name]
 
+TB_ACCESS_FILE = "tb.access"
+#TB_ACCESS_FILE = "tb_lab11.access"
+#folder = "lab_11"
+folder = "main_tb"
+
+if __name__ == "__main__":
+    
+    check_dir(folder)
     params = tb.load_access_parameters(TB_ACCESS_FILE)
     tb_url, tb_user, tb_password, tb_admin, tb_admin_password = params["url"], params["user"], params["password"], params["admin_user"], params["admin_password"]
-    print("Authorizing ...")
-    bearerToken = get_token(tb_url, tb_user, tb_password)[0]
-    print("Access token obtained:")
-    print(bearerToken)
-    save_tenants(tb_url, tb_admin, tb_admin_password, mkpath('TENANT'))
-    save_customers(tb_url, mkpath('CUSTOMER'), token = bearerToken)
-    assets = save_assets(tb_url,  mkpath('ASSET'), token = bearerToken)
-    devices = save_devices(tb_url,  mkpath('DEVICE'), token = bearerToken)
-    save_relations(tb_url, assets, mkpath('RELATION'), token = bearerToken)
-    entity_list = assets + devices
-    save_attributes(tb_url, entity_list, mkpath('ATTRIBUTE'), token = bearerToken)
-    save_dashboards(tb_url, mkpath('DASHBOARD'), bearerToken)
+    #tenants_list = save_tenants(tb_url, tb_admin, tb_admin_password, mkpath(folder, 'TENANT'))
+    tenants_list = [{'name': "ИПУ РАН"}, {'name': "Школа 29"}]
+    for tenant in tenants_list:
+        try:
+            tenant_dir, tenant_user, tenant_pass = prepare_tenant_dir(folder, tenant)
+            print(f"Authorizing as {tenant_user}...")
+            bearerToken = tb.get_token(tb_url, tenant_user, tenant_pass)[0]
+            print("Access token obtained:")
+            print(bearerToken)
+            save_customers(tb_url, mkpath(tenant_dir, 'CUSTOMER'), token = bearerToken)
+            assets = save_assets(tb_url,  mkpath(tenant_dir,'ASSET'), token = bearerToken)
+            devices = save_devices(tb_url,  mkpath(tenant_dir, 'DEVICE'), token = bearerToken)
+            save_relations(tb_url, assets, mkpath(tenant_dir, 'RELATION'), token = bearerToken)
+            entity_list = assets + devices
+            save_attributes(tb_url, entity_list, mkpath(tenant_dir, 'ATTRIBUTE'), token = bearerToken)
+            save_dashboards(tb_url, mkpath(tenant_dir, 'DASHBOARD'), token = bearerToken)
+        except Exception as e:
+            print(f"Error at tenant {tenant['name']}")
+            print(e)
+            
+    
+    
+    
+    
+    
    
