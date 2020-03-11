@@ -1,6 +1,8 @@
 from tb_rest import *
+import datetime
 
-TB_ACCESS_FILE = "tb_test_params.access"
+#TB_ACCESS_FILE = "tb_test_params.access"
+TB_ACCESS_FILE = "tb.access"
 
 def test_get_attributes():
     params = load_access_parameters(TB_ACCESS_FILE)
@@ -19,12 +21,12 @@ def test_get_attributes():
 def test_upload():
     params = load_access_parameters(TB_ACCESS_FILE)
     tb_url = params["url"]
-    DEVICE_TOKEN = params["test_device_token"]
+    DEVICE_TOKEN = 'SMARTMETER000048' #params["test_device_token"]
     ts = toJsTimestamp(datetime.datetime.now().timestamp())
     time.sleep(5)
     ts_2 = toJsTimestamp(datetime.datetime.now().timestamp())
-    data = [{'ts': ts, 'values': {'Load': 'Test On'}},
-            {'ts': ts_2, 'values': {'Load': 'Test Off'}}]
+    data = [{'ts': ts, 'values': {'A': 'Test On'}},
+            {'ts': ts_2, 'values': {'B': 'Test Off'}}]
     resp = upload_telemetry(tb_url, DEVICE_TOKEN, json_data=data)
     print(resp)
 
@@ -83,9 +85,9 @@ def load_default_params():
     return params["url"], params["user"], params["password"], params["ipu_customer_id"], params["ipu_tenant_id"] 
 
 if __name__ == "__main__":
-    #test_upload()
+    test_upload()
     #test_create_asset()
     #test_list_assets()
     #test_get_attributes()    
     #test_create_device()
-    test_device_query()
+    #test_device_query()

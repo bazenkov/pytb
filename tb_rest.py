@@ -329,14 +329,24 @@ tenantId, customerId, deviceType, info="" , createdTime = toJsTimestamp(dt.datet
         return [], resp
     pass
 
-def post_device(tb_url, bearerToken, device_json):
+def post_device(tb_url, bearerToken, device_json, create_new = False):
     url = tb_url + '/api/device'
     headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    if create_new:
+        created_json = create_device(tb_url, bearerToken,
+            device_json['name'], 
+            device_json['tenantId']['id'],
+            device_json['customerId']['id'],
+            device_json['type'],
+            device_json['additionalInfo'])
+        device_json['id'] = created_json['id']
     resp = requests.post(url, headers = headers, json = device_json)
     if resp.status_code == 200:
         return resp.json(), resp
     else:
         return [], resp
+
+
 
 def get_tenants(tb_url, bearerToken):
     url = f"{tb_url}/api/tenants"
@@ -386,7 +396,7 @@ def list_tenant_dashboards(tb_url, bearerToken, limit = 100):
 
 def get_dashboard(tb_url, bearerToken, dashboard_id):
     url = f"{tb_url}/api/dashboard/{dashboard_id}"
-    headers = {'Content-Type': 'application/json', 'X-Authorization': bearerToken}
+    headers = _x_auth_headers(bearerToken)
     resp = requests.get(url, headers=headers)
     if resp.status_code == 200:
         return resp.json(), resp
@@ -394,5 +404,36 @@ def get_dashboard(tb_url, bearerToken, dashboard_id):
         print('Error: ' + str(resp.status_code))
         return [], resp
 
+def list_tenant_rulechains(tb_url, bearerToken, limit = 100):
+    url = f"{tb_url}/api/ruleChains"
+    headers = _x_auth_headers(bearerToken)
+    params = {'limit': limit}
+    return _get_list(url, headers, params)
+
+def get_rulechain(tb_url, bearerToken, chain_id):
+    #url = f"{tb_url}/api/rulechain/{chain_id}"
+    url = f"{tb_url}/api/rulechain/"
+    headers = _x_auth_headers(bearerToken)
+    params = {'ruleChainId': chain_id}
+    return _get_entity(url, headers, params)
 
 
+''' Hidden functions'''
+def _get_list(url, headers, params):
+    resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json()['data'], resp
+    else:
+        print('Error: ' + str(resp.status_code))
+        return [], resp
+
+def _get_entity(url, headers, params = None):
+    resp = requests.get(url, headers=headers, params=params)
+    if resp.status_code == 200:
+        return resp.json(), resp
+    else:
+        print(f'Error at {url}: ' + str(resp.status_code))
+        return [], resp
+
+def _x_auth_headers(token):
+    return {'Content-Type': 'application/json', 'X-Authorization': token}

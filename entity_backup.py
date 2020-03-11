@@ -1,3 +1,8 @@
+#How to use:
+#Thingsboard url, login and password are found in .access file
+#First, the script use admin user to save all tenants
+#Second, it uses the specified user to download the entities for this user's tenant and save them to the specified folder
+
 #TODO:
 #Load tenants + 
 #Load customers + 
@@ -6,12 +11,16 @@
 #Load devices +
 #Load attributes + 
 #Load dashboards + 
+#Load rule chains
+#Load views
+
 
 import tb_rest as tb
 import json as json
 import os.path as path
 import os as os
 import datetime as dt
+import sys
 
 def json_format(json_str):
     json_str = json_str.replace('\'', '\"' )
@@ -140,6 +149,30 @@ def save_dashboards(tb_url, save_dir, token):
         save_entities(save_file, db_info)
     return db_info_list
 
+def save_rulechains(tb_url, save_dir, token):
+    print("Loading rulechains...")
+    rulechains, resp = tb.list_tenant_rulechains(tb_url, token)
+    if rulechains:
+        print(f"{len(rulechains)} rulechains loaded.")
+    else:
+        print("FAILURE: rulechains were not loaded")
+        print(f"Response status: {resp.status_code}")
+        print(resp.json())
+    chains_info_list = []
+    check_dir(save_dir)
+    for i, chain in enumerate(rulechains):
+        chain_info, resp = tb.get_rulechain(tb_url, token, chain['id']['id'])
+        if chain_info:
+            chains_info_list.append(chain_info)
+        else:
+            print(f"FAILURE: rulechain {chain['id']['id']} was not loaded")
+            print(f"Response status: {resp.status_code}")
+            print(resp.json())
+        save_file = save_dir + '/' + f"{str(i)}.json"
+        save_entities(save_file, chain_info,)
+    return chains_info_list
+
+
 
 
 files = {'TENANT': "tenants.json",
@@ -148,7 +181,8 @@ files = {'TENANT': "tenants.json",
          'RELATION': "relations.json",
          'CUSTOMER': "customers.json",
          'ATTRIBUTE': "attributes.json",
-         'DASHBOARD': "dashboards"}
+         'DASHBOARD': "dashboards",
+         'RULECHAIN': "rulechains"}
 
 def check_dir(folder):
     if not path.exists(folder):
@@ -165,35 +199,36 @@ def prepare_tenant_dir(folder, tenant):
 def mkpath(folder, entity_name):
         return folder + '/' + files[entity_name]
 
-TB_ACCESS_FILE = "tb.access"
+#TB_ACCESS_FILE = 
 #TB_ACCESS_FILE = "tb_lab11.access"
 #folder = "lab_11"
-folder = "main_tb"
+#folder = "main_tb"
 
 if __name__ == "__main__":
-    
+    access_file = sys.argv[1]
+    folder = sys.argv[2]
     check_dir(folder)
-    params = tb.load_access_parameters(TB_ACCESS_FILE)
+    params = tb.load_access_parameters(access_file)
     tb_url, tb_user, tb_password, tb_admin, tb_admin_password = params["url"], params["user"], params["password"], params["admin_user"], params["admin_password"]
     #tenants_list = save_tenants(tb_url, tb_admin, tb_admin_password, mkpath(folder, 'TENANT'))
-    tenants_list = [{'name': "ИПУ РАН"}, {'name': "Школа 29"}]
-    for tenant in tenants_list:
-        try:
-            tenant_dir, tenant_user, tenant_pass = prepare_tenant_dir(folder, tenant)
-            print(f"Authorizing as {tenant_user}...")
-            bearerToken = tb.get_token(tb_url, tenant_user, tenant_pass)[0]
-            print("Access token obtained:")
-            print(bearerToken)
-            save_customers(tb_url, mkpath(tenant_dir, 'CUSTOMER'), token = bearerToken)
-            assets = save_assets(tb_url,  mkpath(tenant_dir,'ASSET'), token = bearerToken)
-            devices = save_devices(tb_url,  mkpath(tenant_dir, 'DEVICE'), token = bearerToken)
-            save_relations(tb_url, assets, mkpath(tenant_dir, 'RELATION'), token = bearerToken)
-            entity_list = assets + devices
-            save_attributes(tb_url, entity_list, mkpath(tenant_dir, 'ATTRIBUTE'), token = bearerToken)
-            save_dashboards(tb_url, mkpath(tenant_dir, 'DASHBOARD'), token = bearerToken)
-        except Exception as e:
-            print(f"Error at tenant {tenant['name']}")
-            print(e)
+    #tenants_list = [{'name': "ИПУ РАН"}, {'name': "Школа 29"}]
+    #for tenant in tenants_list:
+    try:
+        #tenant_dir, tenant_user, tenant_pass = prepare_tenant_dir(folder, tenant)
+        print(f"Authorizing as {tb_user}...")
+        bearerToken = tb.get_token(tb_url, tb_user, tb_password)[0]
+        print("Access token obtained:")
+        print(bearerToken)
+        #save_customers(tb_url, mkpath(folder, 'CUSTOMER'), token = bearerToken)
+        #assets = save_assets(tb_url,  mkpath(folder,'ASSET'), token = bearerToken)
+        #devices = save_devices(tb_url,  mkpath(folder, 'DEVICE'), token = bearerToken)
+        #save_relations(tb_url, assets, mkpath(folder, 'RELATION'), token = bearerToken)
+        #entity_list = assets + devices
+        #save_attributes(tb_url, entity_list, mkpath(folder, 'ATTRIBUTE'), token = bearerToken)
+        #save_dashboards(tb_url, mkpath(folder, 'DASHBOARD'), token = bearerToken)
+        save_rulechains(tb_url, mkpath(folder, 'RULECHAIN'), token = bearerToken)
+    except Exception as e:
+        print(e)
             
     
     
