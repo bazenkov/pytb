@@ -102,10 +102,15 @@ def toJsTimestamp(pyTimestamp):
 def fromJsTimestamp(jsTimestamp):
     return jsTimestamp / 1e3
 
-def getTimeseries(tb_url, deviceId, bearerToken, keys, startTs, endTs, limit=100, interval=None, agg='NONE'):
+SEC_IN_DAY = 60*60*24
+SEC_IN_WEEK = SEC_IN_DAY*7
+SEC_IN_MONTH = SEC_IN_DAY*30
+
+def get_timeseries(tb_url, deviceId, bearerToken, keys, startTs, endTs, limit=SEC_IN_DAY, interval=None, agg='NONE'):
     '''
     keys - an iterable like ['temperature', 'humidity']
     startTs, endTs - JavaScript integer timestamp
+                    JavaScript_Ts = Python_Ts * 1000
     '''
     params = { 'keys': ','.join(keys), 'startTs': startTs, 'endTs': endTs,
                'limit': limit, 'interval': interval, 'agg': agg }
@@ -113,6 +118,22 @@ def getTimeseries(tb_url, deviceId, bearerToken, keys, startTs, endTs, limit=100
     headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}
     resp = requests.get(url, headers=headers, params=params)
     return resp
+
+def get_telemetry(tb_url, deviceId, bearerToken, keys, start_time, end_time, limit=100, interval=None, agg='NONE'):
+    '''
+    keys - an iterable like ['temperature', 'humidity']
+    start_time, end_time - Python datetime objects
+    '''
+    start_ts = toJsTimestamp(start_time.timestamp())
+    end_ts = toJsTimestamp(end_time.timestamp())
+    params = { 'keys': ','.join(keys), 'startTs': start_ts, 'endTs': end_ts,
+               'limit': limit, 'interval': interval, 'agg': agg }
+    url = tb_url + '/api/plugins/telemetry/DEVICE/' + deviceId + '/values/timeseries'
+    headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}
+    resp = requests.get(url, headers=headers, params=params)
+    return resp
+
+
 
 def load_telemetry(tb_url, bearerToken, device_list, startTs, endTs):
     for device in device_list:
