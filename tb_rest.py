@@ -12,6 +12,9 @@ LOGIN_URL = '/api/auth/login'
 def get_auth_url(tb_url):
     return tb_url + LOGIN_URL
 
+def request_success(resp):
+    return resp.status_code == 200
+
 def load_access_parameters(key_value_file):
     params = {}
     with open(key_value_file) as file:
@@ -25,7 +28,8 @@ def getToken(tb_url, user, passwd, print_token = False):
     headers = {'Content-Type': 'application/json',
                'Accept': 'application/json'}
     loginJSON = {'username': user, 'password': passwd}
-    tokenAuthResp = requests.post(url, headers=headers, json=loginJSON).json()
+    resp = requests.post(url, headers=headers, json=loginJSON)
+    tokenAuthResp = resp.json()
     if 'token' in tokenAuthResp:
         bearerToken = 'Bearer: ' + tokenAuthResp['token']
         refreshToken = tokenAuthResp['refreshToken']
@@ -39,7 +43,7 @@ def getToken(tb_url, user, passwd, print_token = False):
         print(bearerToken)
         print("Refresh token:")
         print(refreshToken)
-    return bearerToken, refreshToken, tokenAuthResp
+    return bearerToken, refreshToken, resp
 
 DEFAULT_TOKEN_FILE = "token.access"
 TOKEN_EXPIRES = dt.timedelta(minutes=10)
@@ -49,7 +53,7 @@ def save_params(params_file, params):
         for k in params.keys():
             file.write(f"{k}={params[k]}\n")
 
-def get_token(tb_url, tb_user, tb_password, token_file = DEFAULT_TOKEN_FILE):
+def _get_token(tb_url, tb_user, tb_password, token_file = DEFAULT_TOKEN_FILE):
     '''
     The token file contains key-value pairs:
     token = TOKEN STRING
@@ -137,7 +141,7 @@ def get_telemetry(tb_url, deviceId, bearerToken, keys, start_time, end_time, lim
 
 def load_telemetry(tb_url, bearerToken, device_list, startTs, endTs):
     for device in device_list:
-        resp = getTimeseries(tb_url,
+        resp = get_timeseries(tb_url,
             device['id'], bearerToken, device['keys'], startTs, endTs, limit=10000)
         if resp.status_code == 200:
             device['data'] = resp.json()
