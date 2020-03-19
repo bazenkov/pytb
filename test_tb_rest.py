@@ -8,8 +8,8 @@ def test_get_attributes():
     params = load_access_parameters(TB_ACCESS_FILE)
     tb_url, tb_user, tb_password = [params["url"], params["user"], params["password"]]
     bearerToken, _, _ = getToken(tb_url, tb_user, tb_password)
-    assetType = 'Потребитель'
-    assets, _ = list_tenant_assets(tb_url, bearerToken, assetType, textSearch = 'SM45')
+    assetType = 'ROOM'
+    assets, _ = list_tenant_assets(tb_url, bearerToken, assetType)
     entityType = 'ASSET'
     entityId = assets[0]['id']['id']
     scope = 'SERVER_SCOPE'
@@ -49,8 +49,8 @@ def test_list_assets():
     params = load_access_parameters(TB_ACCESS_FILE)
     tb_url, tb_user, tb_password = [params["url"], params["user"], params["password"]]
     bearerToken, _, _ = getToken(tb_url, tb_user, tb_password)
-    assetType = 'Потребитель'
-    assets, resp = list_tenant_assets(tb_url, bearerToken, assetType, textSearch = 'SM45')
+    assetType = 'ROOM'
+    assets, resp = list_tenant_assets(tb_url, bearerToken, assetType)
     print(assets)
     print(resp)
 
@@ -86,8 +86,8 @@ def load_default_params():
 
 if __name__ == "__main__":
     test_upload()
-    #test_create_asset()
-    #test_list_assets()
-    #test_get_attributes()    
-    #test_create_device()
-    #test_device_query()
+    test_create_asset()
+    test_list_assets()
+    test_get_attributes()    
+    test_create_device()
+    test_device_query()

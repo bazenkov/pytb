@@ -89,9 +89,9 @@ def refresh_token(tb_url, bearerToken, refreshToken):
     headers = {'Content-Type': 'application/json',
                'X-Authorization': bearerToken}
     json = {'refreshToken': refreshToken}
-    tokenAuthResp = requests.post(url, headers=headers, json=json).json()
-    bearerToken = 'Bearer: ' + tokenAuthResp['token']
-    refreshToken = tokenAuthResp['refreshToken']
+    tokenAuthResp = requests.post(url, headers=headers, json=json)
+    bearerToken = 'Bearer: ' + tokenAuthResp.json()['token']
+    refreshToken = tokenAuthResp.json()['refreshToken']
     return bearerToken, refreshToken, tokenAuthResp
 
 def getKeys(tb_url, deviceId, bearerToken):
