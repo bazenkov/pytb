@@ -104,7 +104,7 @@ def toJsTimestamp(pyTimestamp):
     return int(pyTimestamp * 1e3)
 
 def fromJsTimestamp(jsTimestamp):
-    return jsTimestamp / 1e3
+    return round( int(jsTimestamp) / 1e3)
 
 SEC_IN_DAY = 60*60*24
 SEC_IN_WEEK = SEC_IN_DAY*7
@@ -248,7 +248,7 @@ def list_tenant_assets(tb_url, bearerToken, assetType=None, limit = 100, textSea
     else:
         return [], resp
 
-def get_tenant_devices(tb_url, bearerToken, deviceType=None, limit = 100, textSearch = None):
+def get_tenant_devices(tb_url, bearerToken, deviceType=None, limit = 2000, textSearch = None):
     url = f'{tb_url}/api/tenant/devices'
     params = {'limit':limit}
     if deviceType:

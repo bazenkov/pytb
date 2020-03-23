@@ -5,9 +5,11 @@ import io
 import json
 import os.path as path
 import sys
+from collections import namedtuple
+from unidecode import unidecode
 #import csv
 import tb_rest as tb
-from collections import namedtuple
+
 
 TIME_FORMAT = "%d.%m.%Y %H:%M:%S"
 FILE_MODE = 'a'
@@ -69,6 +71,8 @@ class TbConnection:
 #     return intervals
 
 def time_segments(start_time, end_time, delta = TIME_SEGMENT):
+    if end_time < start_time:
+        raise ValueError(f"End time = {end_time} < start time {start_time}")
     (num_seg, last_seg) = divmod(end_time - start_time, delta)
     segments = []
     seg_start_time = start_time
@@ -83,11 +87,12 @@ def check_interval(start_time, end_time, file, file_mode):
     def check_in_file():
         if os.path.exists(file):
             with open(file, 'r') as f:
-                last_line = f.readlines()[-1]
-                time_line = last_line.split(DELIMETER)[0]
-                return datetime.datetime.strptime(time_line, TIME_FORMAT)
-        else:
-            return None
+                lines = f.readlines()
+                if len(lines) > 1:
+                    time_line = lines[-1].split(DELIMETER)[0]
+                    #return datetime.datetime.strptime(time_line, TIME_FORMAT)
+                    return datetime.datetime.fromtimestamp(tb.fromJsTimestamp(time_line))
+        return None
     if file_mode == 'a':
         start_time_file = check_in_file()
         if start_time_file:
@@ -104,12 +109,15 @@ def print_to_csv(file, values, key, mode,  delimeter = DELIMETER):
     def print_header():
         csvfile.write(f"ts{delimeter}{key}\n")
 
+    need_header = False
+    if not path.exists(file) or mode == 'w':
+        need_header = True
     with io.open(file, mode, newline='', encoding='utf-8') as csvfile:
-        if mode == 'w':
+        if need_header:
             print_header()
         for row in values:
-            pretty_time = str_ts(round(tb.fromJsTimestamp(row['ts'])))
-            csvfile.write(f"{pretty_time}{delimeter}{row['value']}\n")
+            #pretty_time = str_ts(round(tb.fromJsTimestamp(row['ts'])))
+            csvfile.write(f"{row['ts']}{delimeter}{row['value']}\n")
 
 def str_ts(ts):
     return datetime.datetime.fromtimestamp(ts).strftime(TIME_FORMAT)
@@ -155,31 +163,33 @@ def get_config_params(argv):
     with open(config_file, 'r') as f:
         params = json.load(f)
     if 'file_mode' not in params :
-        params[file_mode] = FILE_MODE
+        params['file_mode'] = FILE_MODE
     params['start_time'] = datetime.datetime.strptime(params['start_time'], TIME_FORMAT)
     if params['end_time']:
         params['end_time'] = datetime.datetime.strptime(params['end_time'], TIME_FORMAT)
     else:
         params['end_time'] = datetime.datetime.now()
-    return tuple(params.values())
+    if 'time_segment_hrs' in params.keys():
+        params['time_delta'] = datetime.timedelta(seconds = SEC_IN_HOUR * int(params['time_segment_hrs']))#in hours
+    return params
 
 def check_dir(folder):
     if not path.exists(folder):
         os.mkdir(folder)
 
-def load_all_data(tb_connection, data_dir, devices, start_time, end_time, keys, file_mode):
+def load_all_data(tb_connection, data_dir, devices, start_time, end_time, time_delta, keys, file_mode):
     for device_name, _id in devices.items():
-        load_device_data(tb_connection, data_dir, device_name, _id, start_time, end_time, keys, file_mode)
+        load_device_data(tb_connection, data_dir, device_name, _id, start_time, end_time, time_delta, keys, file_mode)
     
 
-def load_device_data(tb_connection, data_dir, device_name, device_id, start_time, end_time, keys, file_mode):
+def load_device_data(tb_connection, data_dir, device_name, device_id, start_time, end_time, time_delta, keys, file_mode):
     device_folder = f'{data_dir}/{device_name}'
     check_dir(device_folder)
     for key in keys:
         file = key_file(device_folder, key)
         key_start_time, key_end_time = check_interval(start_time, end_time, file, file_mode)
         #divide time into segments
-        segments = time_segments(key_start_time, key_end_time)
+        segments = time_segments(key_start_time, key_end_time, delta = time_delta)
         #if mode = 'write', the first segment is written in 'w' mode
         if file_mode == 'w':
             get_data_noseg(tb_connection, file, device_name, device_id, segments[0].start, segments[0].end, key, file_mode = 'w')
@@ -188,11 +198,30 @@ def load_device_data(tb_connection, data_dir, device_name, device_id, start_time
         #other segments is written in 'append' mode
         for seg in segments[1:]:
             get_data_noseg(tb_connection, file, device_name, device_id, seg.start, seg.end, key, file_mode = 'a')
-       
+
+def name_id_list(entities):
+    return {valid_name(x['name']):x['id']['id'] for x in entities}
+
+
+FORBIDDEN_SYMBOLS = ",\"*/:<>?\\|+;=()[] "
+REPLACE_SYMBOLS = "_"*len(FORBIDDEN_SYMBOLS)
+TRANS_TABLE = FORBIDDEN_SYMBOLS.maketrans(FORBIDDEN_SYMBOLS, REPLACE_SYMBOLS)
+
+def valid_name(device_name):
+    return unidecode(device_name.translate(TRANS_TABLE)).replace("__", "_").replace("___", "_").strip("_")
+
 if __name__ == "__main__":
     tb_url, tb_user, tb_password = get_tb_params(sys.argv)
-    data_dir, start_time, end_time, keys, devices, file_mode = get_config_params(sys.argv)
-    check_dir(data_dir)
+    #data_dir, start_time, end_time, keys, devices, file_mode, device_type = get_config_params(sys.argv)
+    params = get_config_params(sys.argv)
+    check_dir(params['folder'])
     tb_connection = TbConnection(tb_url, tb_user, tb_password)
-    print(f"Total interval: {start_time.strftime(TIME_FORMAT)}-{end_time.strftime(TIME_FORMAT)}")
-    load_all_data(tb_connection, data_dir, devices, start_time, end_time, keys, file_mode)
+    if params['device_type']:#if device type is specified, ignore the specified devices
+        devices, resp = tb.get_tenant_devices(tb_connection.url, tb_connection.get_token(), params['device_type'])
+        if not tb.request_success(resp):
+            raise ConnectionError(self, resp)
+        params['devices'] = name_id_list(devices)
+    print(f"Total interval: {params['start_time'].strftime(TIME_FORMAT)}-{params['end_time'].strftime(TIME_FORMAT)}")
+    load_all_data(tb_connection, params['folder'], params['devices'], 
+                    params['start_time'], params['end_time'], params['time_delta'],
+                    params['keys'], params['file_mode'])

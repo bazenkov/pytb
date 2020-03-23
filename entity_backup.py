@@ -216,7 +216,7 @@ if __name__ == "__main__":
     try:
         #tenant_dir, tenant_user, tenant_pass = prepare_tenant_dir(folder, tenant)
         print(f"Authorizing as {tb_user}...")
-        bearerToken = tb.get_token(tb_url, tb_user, tb_password)[0]
+        bearerToken = tb.getToken(tb_url, tb_user, tb_password)[0]
         print("Access token obtained:")
         print(bearerToken)
         #save_customers(tb_url, mkpath(folder, 'CUSTOMER'), token = bearerToken)
