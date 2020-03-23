@@ -221,7 +221,9 @@ if __name__ == "__main__":
         if not tb.request_success(resp):
             raise ConnectionError(self, resp)
         params['devices'] = name_id_list(devices)
+    print("*** Download started ***")
     print(f"Total interval: {params['start_time'].strftime(TIME_FORMAT)}-{params['end_time'].strftime(TIME_FORMAT)}")
     load_all_data(tb_connection, params['folder'], params['devices'], 
                     params['start_time'], params['end_time'], params['time_delta'],
                     params['keys'], params['file_mode'])
+    print("*** Download finished ***")
