@@ -27,7 +27,7 @@ class ConnectionError(Exception):
         self.message = resp.message
 
 class TbConnection:
-    TOKEN_EXPIRE_SEC = datetime.timedelta(seconds = 700)
+    TOKEN_EXPIRE_SEC = datetime.timedelta(seconds = 800)
     
     def __init__(self, tb_url, tb_user, tb_password):
         print(f"Authorization at {tb_url} as {tb_user}")
@@ -58,20 +58,8 @@ class TbConnection:
         self.update_token()
         return self.token
 
-# def timeint_div(start_ts, end_ts, segments):
-#     date_x1 = start_ts
-#     date_x2 = date_x1
-#     delta = (end_ts - start_ts) // segments
-#     intervals = []
-#     while date_x2 < end_ts:
-#         date_x2 += delta
-#         intervals.append((date_x1, date_x2))
-#         date_x1 = date_x2
-#     intervals.reverse()
-#     return intervals
-
 def time_segments(start_time, end_time, delta = TIME_SEGMENT):
-    if end_time < start_time:
+    if not long_interval(start_time, end_time):
         raise ValueError(f"End time = {end_time} < start time {start_time}")
     (num_seg, last_seg) = divmod(end_time - start_time, delta)
     segments = []
@@ -125,8 +113,11 @@ def str_ts(ts):
 def key_file(device_folder, key):
     return device_folder + f'/{key}.csv'
 
+def long_interval(start_time, end_time):
+    return  end_time - start_time >= MIN_TIME_DELTA
+
 def get_data_noseg(tb_connection, file, device_name, device_id, start_time, end_time, key, file_mode = FILE_MODE):
-    if end_time - start_time > MIN_TIME_DELTA:
+    if long_interval(start_time, end_time):
         print(f'Downloading data for {device_name}, key: {key}, \
                     interval: {start_time.strftime(TIME_FORMAT)}-{end_time.strftime(TIME_FORMAT)}')
         resp = tb.get_timeseries(tb_connection.url, device_id, tb_connection.get_token(), [key], 
@@ -146,10 +137,12 @@ def get_data_noseg(tb_connection, file, device_name, device_id, start_time, end_
                 print('Done')
             else:
                 print('No data found')
+        return resp
     else:
         print(f"Skipped for {device_name}, key: {key}, \
                     interval: {start_time.strftime(TIME_FORMAT)}-{end_time.strftime(TIME_FORMAT)} \
                     is too short")
+        return None
 
 def get_tb_params(argv):
     access_file = argv[1]
@@ -188,16 +181,23 @@ def load_device_data(tb_connection, data_dir, device_name, device_id, start_time
     for key in keys:
         file = key_file(device_folder, key)
         key_start_time, key_end_time = check_interval(start_time, end_time, file, file_mode)
-        #divide time into segments
-        segments = time_segments(key_start_time, key_end_time, delta = time_delta)
-        #if mode = 'write', the first segment is written in 'w' mode
-        if file_mode == 'w':
-            get_data_noseg(tb_connection, file, device_name, device_id, segments[0].start, segments[0].end, key, file_mode = 'w')
+        if long_interval(key_start_time, key_end_time):
+            #divide time into segments
+            segments = time_segments(key_start_time, key_end_time, delta = time_delta)
+            if segments:
+                if file_mode == 'w':#if mode = 'write', the first segment is written in 'w' mode
+                    resp = get_data_noseg(tb_connection, file, device_name, device_id, segments[0].start, segments[0].end, key, file_mode = 'w')
+                else:
+                    resp = get_data_noseg(tb_connection, file, device_name, device_id, segments[0].start, segments[0].end, key, file_mode = 'a')
+                if not tb.request_success(resp):
+                    return resp
+                #other segments is written in 'append' mode
+                for seg in segments[1:]:
+                    resp = get_data_noseg(tb_connection, file, device_name, device_id, seg.start, seg.end, key, file_mode = 'a')
+                    if not tb.request_success(resp):
+                        return resp
         else:
-            get_data_noseg(tb_connection, file, device_name, device_id, segments[0].start, segments[0].end, key, file_mode = 'a')
-        #other segments is written in 'append' mode
-        for seg in segments[1:]:
-            get_data_noseg(tb_connection, file, device_name, device_id, seg.start, seg.end, key, file_mode = 'a')
+            print(f"WARNING: small segment for device {device_name}, key {key}: {key_start_time} to {key_end_time}")
 
 def name_id_list(entities):
     return {valid_name(x['name']):x['id']['id'] for x in entities}
