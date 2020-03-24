@@ -4,28 +4,47 @@
 #import json
 import sys
 #import os.path as path
+from queue import Queue
 import download_new as dwn
 import tb_rest as tb
 import datetime as dt
 
 
 TIME_FORMAT = "%d.%m.%Y %H:%M:%S"
+MAX_TRY = 50
 
 def delete_all_data(tb_connection, devices, keys, start_time, end_time):
     """
     devices - {'name':'id',...}
     """
+
+    device_queue = Queue()
     for name, _id in devices.items():
-        print(f"Delete telemetry for {name}. From {start_time.strftime(TIME_FORMAT)} to {end_time.strftime(TIME_FORMAT)}...", end = " ")
-        #for k in keys:
-        #    print(k, end = " ")            
-        resp = tb.delete_telemetry(tb_connection.url, tb_connection.get_token(), _id, keys, start_time, end_time)
-        if tb.request_success(resp):
-            print("Success")
+        elem = {'name': name, 'id': _id, 'num_try': 0}
+        device_queue.put(elem)
+
+    done = False
+    while not done:
+        if not device_queue.empty():
+            elem = device_queue.get()
+            print(f"Delete telemetry for {elem['name']}. \
+                From {start_time.strftime(TIME_FORMAT)} to {end_time.strftime(TIME_FORMAT)}...", end = " ")         
+            resp = tb.delete_telemetry(tb_connection.url, tb_connection.get_token(), elem['id'], keys, start_time, end_time)
+            if tb.request_success(resp):
+                print("Success")
+            elif resp.status_code == 204:
+                print("No data")
+            else:
+                print("ERROR")
+                print(f"Code={resp.status_code}")
+                print(resp.json())
+                if elem['num_try'] < MAX_TRY:
+                    elem['num_try'] += 1
+                    device_queue.put(elem)
+                else:
+                    print(f"Max number of tries={elem['num_try']} reached for {elem['name']}")
         else:
-            print("ERROR")
-            print(f"Code={resp.status_code}")
-            print(resp.json())
+            done = True
 
 
 def get_config_params(argv):
