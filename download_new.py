@@ -9,7 +9,8 @@ from collections import namedtuple
 from unidecode import unidecode
 #import csv
 import tb_rest as tb
-
+from tb_rest import TbConnection
+from tb_rest import ConnectionError
 
 TIME_FORMAT = "%d.%m.%Y %H:%M:%S"
 FILE_MODE = 'a'
@@ -20,43 +21,7 @@ TIME_SEGMENT = datetime.timedelta(seconds = 3*SEC_IN_HOUR)
 
 TimeSegment = namedtuple('TimeSegment', ['start', 'end'] )
 
-class ConnectionError(Exception):
-    def __init__(self, tb_connection, resp):
-        self.connection = tb_connection
-        self.resp = resp
-        self.message = resp.message
 
-class TbConnection:
-    TOKEN_EXPIRE_SEC = datetime.timedelta(seconds = 800)
-    
-    def __init__(self, tb_url, tb_user, tb_password):
-        print(f"Authorization at {tb_url} as {tb_user}")
-        bearer_token, refresh_token, resp = tb.getToken(tb_url, tb_user, tb_password)    
-        if not tb.request_success(resp):
-            raise ConnectionError(self, resp)
-        self.user = tb_user
-        self.password = tb_password
-        self.token = bearer_token
-        self.refresh_token = refresh_token
-        self.url = tb_url
-        self.token_time = datetime.datetime.now()
-    
-    def expired(self):
-        return datetime.datetime.now() - self.token_time >= self.TOKEN_EXPIRE_SEC
-
-    def update_token(self, force = False):
-        if self.expired() or force:
-            print("Refreshing token ...")
-            self.token, self.refresh_token, tokenAuthResp = tb.refresh_token(self.url, self.token, self.refresh_token)
-            if not tb.request_success(tokenAuthResp):
-                print("Token refresh failed, obtaining a new token ...")
-                self.token, self.refresh_token, new_resp = tb.getToken(self.url, self.user, self.password)   
-                if not tb.request_success(new_resp):
-                    print("Authorization request failed")
-                    raise ConnectionError(self, new_resp)
-    def get_token(self):
-        self.update_token()
-        return self.token
 
 def time_segments(start_time, end_time, delta = TIME_SEGMENT):
     if not long_interval(start_time, end_time):
@@ -199,7 +164,7 @@ def load_device_data(tb_connection, data_dir, device_name, device_id, start_time
         else:
             print(f"WARNING: small segment for device {device_name}, key {key}: {key_start_time} to {key_end_time}")
 
-def name_id_list(entities):
+def name_id_dict(entities):
     return {valid_name(x['name']):x['id']['id'] for x in entities}
 
 
@@ -220,7 +185,7 @@ if __name__ == "__main__":
         devices, resp = tb.get_tenant_devices(tb_connection.url, tb_connection.get_token(), params['device_type'])
         if not tb.request_success(resp):
             raise ConnectionError(self, resp)
-        params['devices'] = name_id_list(devices)
+        params['devices'] = name_id_dict(devices)
     print("*** Download started ***")
     print(f"Total interval: {params['start_time'].strftime(TIME_FORMAT)}-{params['end_time'].strftime(TIME_FORMAT)}")
     load_all_data(tb_connection, params['folder'], params['devices'], 

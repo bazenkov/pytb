@@ -9,6 +9,46 @@ import os as os
 
 # authorization
 LOGIN_URL = '/api/auth/login'
+class ConnectionError(Exception):
+    def __init__(self, tb_connection, resp):
+        self.connection = tb_connection
+        self.resp = resp
+        self.message = resp.message
+
+class TbConnection:
+    TOKEN_EXPIRE_SEC = dt.timedelta(seconds = 800)
+    
+    def __init__(self, tb_url, tb_user, tb_password):
+        print(f"Authorization at {tb_url} as {tb_user}")
+        bearer_token, refresh_token, resp = getToken(tb_url, tb_user, tb_password)    
+        if not request_success(resp):
+            raise ConnectionError(self, resp)
+        self.user = tb_user
+        self.password = tb_password
+        self.token = bearer_token
+        self.refresh_token = refresh_token
+        self.url = tb_url
+        self.token_time = dt.datetime.now()
+    
+    def expired(self):
+        return dt.datetime.now() - self.token_time >= self.TOKEN_EXPIRE_SEC
+
+    def update_token(self, force = False):
+        if self.expired() or force:
+            print("Refreshing token ...")
+            self.token, self.refresh_token, tokenAuthResp = refresh_token(self.url, self.token, self.refresh_token)
+            if not request_success(tokenAuthResp):
+                print("Token refresh failed, obtaining a new token ...")
+                self.token, self.refresh_token, new_resp = getToken(self.url, self.user, self.password)   
+                if not request_success(new_resp):
+                    print("Authorization request failed")
+                    raise ConnectionError(self, new_resp)
+    def get_token(self):
+        self.update_token()
+        return self.token
+
+
+
 def get_auth_url(tb_url):
     return tb_url + LOGIN_URL
 
@@ -123,7 +163,7 @@ def get_timeseries(tb_url, deviceId, bearerToken, keys, startTs, endTs, limit=SE
     resp = requests.get(url, headers=headers, params=params)
     return resp
 
-def get_telemetry(tb_url, deviceId, bearerToken, keys, start_time, end_time, limit=100, interval=None, agg='NONE'):
+def get_telemetry(tb_url, deviceId, bearerToken, keys, start_time, end_time, limit=SEC_IN_DAY, interval=None, agg='NONE'):
     '''
     keys - an iterable like ['temperature', 'humidity']
     start_time, end_time - Python datetime objects
@@ -137,7 +177,16 @@ def get_telemetry(tb_url, deviceId, bearerToken, keys, start_time, end_time, lim
     resp = requests.get(url, headers=headers, params=params)
     return resp
 
-
+def delete_telemetry(tb_url, bearerToken, entityId, keys, 
+                    start_time, end_time, entityType = "DEVICE", deleteAllData = False, rewriteLatest = False):
+    start_ts = toJsTimestamp(start_time.timestamp())
+    end_ts = toJsTimestamp(end_time.timestamp())
+    params = { 'keys': ','.join(keys), 'startTs': start_ts, 'endTs': end_ts,
+               'deleteAllDataForKeys': deleteAllData, 'rewriteLatestIfDeleted': rewriteLatest}
+    headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}
+    url = tb_url + f'/api/plugins/telemetry/{entityType}/{entityId}/timeseries/delete'
+    resp = requests.delete(url, headers=headers, params=params)
+    return resp
 
 def load_telemetry(tb_url, bearerToken, device_list, startTs, endTs):
     for device in device_list:

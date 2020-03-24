@@ -84,6 +84,10 @@ def load_default_params():
     params = load_access_parameters(TB_ACCESS_FILE)
     return params["url"], params["user"], params["password"], params["ipu_customer_id"], params["ipu_tenant_id"] 
 
+def test_delete():
+    params = load_access_parameters(TB_ACCESS_FILE)
+    tb_url, tb_user, tb_password, _, _ = load_default_params()
+
 if __name__ == "__main__":
     test_upload()
     test_create_asset()
