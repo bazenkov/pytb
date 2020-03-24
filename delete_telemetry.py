@@ -3,7 +3,7 @@
 #import io
 #import json
 import sys
-#import os.path as path
+import json
 from queue import Queue
 import download_new as dwn
 import tb_rest as tb
@@ -47,8 +47,7 @@ def delete_all_data(tb_connection, devices, keys, start_time, end_time):
             done = True
 
 
-def get_config_params(argv):
-    config_file = argv[2]
+def get_config_params(config_file):
     with open(config_file, 'r') as f:
         params = json.load(f)
     params['start_time'] = dt.datetime.strptime(params['start_time'], TIME_FORMAT)
@@ -59,9 +58,10 @@ def get_config_params(argv):
     return params
 
 if __name__ == "__main__":
-    tb_url, tb_user, tb_password = dwn.get_tb_params(sys.argv)
-    params = dwn.get_config_params(sys.argv)
-    tb_connection = tb.TbConnection(tb_url, tb_user, tb_password)
+    params = get_config_params(sys.argv[1])
+    if "password" not in params.keys():
+        params['password'] = input("Enter password: ")
+    tb_connection = tb.TbConnection(params['url'], params['user'], params['password'])
     if 'device_type' in params.keys():#if device type is specified, ignore the specified devices
         devices, resp = tb.get_tenant_devices(tb_connection.url, tb_connection.get_token(), params['device_type'])
         if not tb.request_success(resp):

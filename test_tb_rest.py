@@ -86,7 +86,7 @@ def load_default_params():
 
 def test_delete():
     params = load_access_parameters(TB_ACCESS_FILE)
-    tb_url, tb_user, tb_password, _, _ = load_default_params()
+    tb_url, tb_user, tb_password, _, _ = load_default_params()w
 
 if __name__ == "__main__":
     test_upload()
