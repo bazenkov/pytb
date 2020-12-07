@@ -37,7 +37,10 @@ def delete_all_data(tb_connection, devices, keys, start_time, end_time):
             else:
                 print("ERROR")
                 print(f"Code={resp.status_code}")
-                print(resp.json())
+                try :
+                    print(resp.json())
+                except:
+                    print(resp.content)
                 if elem['num_try'] < MAX_TRY:
                     elem['num_try'] += 1
                     device_queue.put(elem)

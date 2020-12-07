@@ -297,7 +297,7 @@ def list_tenant_assets(tb_url, bearerToken, assetType=None, limit = 100, textSea
     else:
         return [], resp
 
-def get_tenant_devices(tb_url, bearerToken, deviceType=None, limit = 2000, textSearch = None):
+def get_tenant_devices(tb_url, bearerToken, deviceType=None, limit = 2000, textSearch = None, get_credentials = False):
     url = f'{tb_url}/api/tenant/devices'
     params = {'limit':limit}
     if deviceType:
@@ -307,9 +307,15 @@ def get_tenant_devices(tb_url, bearerToken, deviceType=None, limit = 2000, textS
     headers = {'Accept': 'application/json', 'X-Authorization': bearerToken}  
     resp = requests.get(url, headers=headers, params=params)
     if resp.status_code == 200:
-        return resp.json()['data'], resp 
+        devices = resp.json()['data']
+        if get_credentials:
+            for d in devices:
+                d['token'] = get_device_credentials(tb_url, bearerToken, d['id']['id'])['credentialsId']
+        return devices, resp
     else:
         return [], resp
+
+
 
 def device_query(tb_url, bearerToken, deviceTypes=None, parameters=None, relationType=None):
     '''
