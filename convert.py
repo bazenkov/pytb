@@ -209,11 +209,12 @@ def transform_fields(tbl):
 
 #@profile
 def lookup_and_transform(ts_kv_table):
-    lkp = petl.lookup(ts_kv_table, 'entity_id')
+    lkp = petl.lookup(ts_kv_table, 'entity_id', value=('key','ts','value'))
     for id in lkp:
         #lkp[id] = sorted(lkp[id], key=lambda row : get_ts(row))
-        tbl = [petl.header(ts_kv_table)] + lkp[id]
-        tbl = petl.cutout(tbl, 'entity_type', 'entity_id')
+        #tbl = [petl.header(ts_kv_table)] + lkp[id]
+        tbl = [('key','ts','value')] + lkp[id]
+        #tbl = petl.cutout(tbl, 'entity_type', 'entity_id')
         tbl_by_ts = petl.recast(tbl, variablefield='key', valuefield='value')
         tbl_by_ts = petl.transform.headers.sortheader(tbl_by_ts)
         tbl_by_ts = petl.transform.basics.movefield(tbl_by_ts, 'ts', 0)
