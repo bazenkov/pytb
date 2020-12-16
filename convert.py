@@ -45,6 +45,15 @@ import os
 import os.path as path
 import petl
 import tb_rest as tb
+from unidecode import unidecode
+#from memory_profiler import profile
+
+FORBIDDEN_SYMBOLS = ",\"*/:<>?\\|+;=()[] "
+REPLACE_SYMBOLS = "_"*len(FORBIDDEN_SYMBOLS)
+TRANS_TABLE = FORBIDDEN_SYMBOLS.maketrans(FORBIDDEN_SYMBOLS, REPLACE_SYMBOLS)
+
+def valid_name(device_name):
+    return unidecode(device_name.translate(TRANS_TABLE)).replace("__", "_").replace("___", "_").strip("_")
 
 def check_dir(folder):
     if not path.exists(folder):
@@ -57,9 +66,13 @@ def load_devices(file):
     '''
     File header:
     id;additional_info;customer_id;type;name;label;search_text;tenant_id
+    
+    Output:
+        dictionary like {'id_1': {name:'Device 1'}, ...}
+
     '''
     tbl_devices = petl.io.csv.fromcsv(file, delimiter=';')
-    tbl_devices = petl.cutout(tbl, 'customer_id', 'serch_text', 'tenant_id')
+    tbl_devices = petl.cutout(tbl_devices, 'customer_id', 'search_text', 'tenant_id')
     #PETL docs:
     #https://petl.readthedocs.io/en/stable/util.html#petl.util.lookups.dictlookupone
     devices = petl.dictlookupone(tbl_devices, 'id')
@@ -194,24 +207,25 @@ def transform_fields(tbl):
     ts_kv_table = petl.cutout(ts_kv_table, 'bool_v', 'str_v', 'long_v', 'dbl_v')
     return ts_kv_table
 
+#@profile
 def lookup_and_transform(ts_kv_table):
     lkp = petl.lookup(ts_kv_table, 'entity_id')
     for id in lkp:
-        #print(f"{id} : {len(lkp[id])} entries")
-        lkp[id] = sorted(lkp[id], key=lambda row : get_ts(row))
-        #keys = set([row[2] for row in lkp[id]])
-        #header = ['ts'] + list(keys)
+        #lkp[id] = sorted(lkp[id], key=lambda row : get_ts(row))
         tbl = [petl.header(ts_kv_table)] + lkp[id]
         tbl = petl.cutout(tbl, 'entity_type', 'entity_id')
         tbl_by_ts = petl.recast(tbl, variablefield='key', valuefield='value')
         tbl_by_ts = petl.transform.headers.sortheader(tbl_by_ts)
         tbl_by_ts = petl.transform.basics.movefield(tbl_by_ts, 'ts', 0)
+        tbl_by_ts = petl.sort(tbl_by_ts, 'ts')#, cache = False
         lkp[id] = tbl_by_ts
     return lkp
 
-def load(tables_by_id, output_folder):
+def load(tables_by_id, output_folder, devices):
+    
     for id in tables_by_id:
-        tbl_device_file = path.join(output_folder, f"{id}.csv")
+        name = valid_name(devices[id]['name'])
+        tbl_device_file = path.join(output_folder, f"{name}.csv")
         if path.isfile(tbl_device_file):
             tbl_old = petl.fromcsv(tbl_device_file, delimiter = ';')
             old_header = petl.header(tbl_old)
@@ -223,25 +237,48 @@ def load(tables_by_id, output_folder):
         else:       
             petl.tocsv(tables_by_id[id], tbl_device_file, delimiter = ';')
 
+#@profile
+def convert_file(ts_file, devices, output_folder):
+    ts_kv_table = petl.io.csv.fromcsv(ts_file, header = HEADER, delimiter=';')
+    print(f"Loaded {len(ts_kv_table)} rows.")
+    print("Transforming fields...")
+    ts_kv_table = transform_fields(ts_kv_table)
+    lkp = lookup_and_transform(ts_kv_table)
+    load(lkp, output_folder, devices)
+    print(f"Success. Data from {len(lkp)} devices saved to {output_folder}")
+
+def is_ts(name):
+    #root,ext = splitext(path)
+    #if ext == 'gz':
+    #    ext = splitext(root)[1]
+    #return ext == 'csv'
+    return name[:5] == "ts_kv"
+
+def convert_folder(input_folder, devices, output_folder):
+    files = [f for f in os.scandir(input_folder)]
+    files = sorted(files, key = lambda x: os.stat(x).st_mtime)
+    for f in files:
+        if is_ts(f.name):
+            try:
+                print(f"Processing {f.path} ...")
+                convert_file(f.path, devices, output_folder)
+            except Exception as e:
+                print(e)
+        else:
+            print(f"File {f.name} skipped")
 
 HEADER = ['entity_type', 'entity_id', 'key', 'ts', 'bool_v', 'str_v', 'long_v', 'dbl_v']
 
 if __name__ == "__main__":
     #parse command-line arguments
-    ts_file = argv[1]
-    #devices_file = argv[2] #Device file is not used now
-    output_folder = argv[2]
+    first_arg = argv[1]
+    devices_file = argv[2] 
+    output_folder = argv[3]
     check_dir(output_folder)
-    #devices = load_devices(devices_file)
-    #if len(argv)>3:
-    #    devices = check_devices(output_folder, argv[3])
-    #else:
-    #    devices = check_devices(output_folder)
-    #print(f"{len(devices)} devices is loaded")
-    ts_kv_table = petl.io.csv.fromcsv(ts_file, header = HEADER, delimiter=';')
-    print(f"Loaded rows data from {ts_file}")
-    ts_kv_table = transform_fields(ts_kv_table)
-    lkp = lookup_and_transform(ts_kv_table)
-    load(lkp, output_folder)
-    print(f"Data from {len(lkp)} devices saved to {output_folder}")
+    devices = load_devices(devices_file)
+    print(f"Loaded {len(devices)} from {devices_file}")
+    if path.isfile(first_arg):
+        convert_file(first_arg, devices, output_folder)
+    elif path.isdir(first_arg):
+        convert_folder(first_arg, devices, output_folder)
    
