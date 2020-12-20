@@ -13,7 +13,7 @@
 #1583010040249;19.0;65.0
 #
 #File devices.csv contains information about devices identity:
-#label;name;type;tb_id;cmdb_id
+#
 #
 #File location.csv contains information about where each device was placed at
 #the given time
@@ -30,7 +30,12 @@
 #
 #
 #Usage
-#convert device.csv ts_kv.csv output_folder
+#
+#convert ts_kv.csv devices.csv output_folder
+#
+# or
+#
+#convert input_folder devices.csv output_folder
 #
 #The output csv files is named like device_name.csv
 #The name consists of the device name where non-latin symbols and symbols not allowed for file naming are removed or replaced by _
@@ -38,6 +43,12 @@
 #the new data are appended at the end. 
 #No consistency check is made at this stage
 #
+#
+
+#Features to be done:
+# - Add json config file
+# - Automatic target folder creation if absent
+# - Fetch device description from TB
 
 from sys import argv
 import json
