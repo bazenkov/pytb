@@ -232,7 +232,7 @@ def load(tables_by_id, output_folder, devices):
             old_header = petl.header(tbl_old)
             new_header = petl.header(tables_by_id[id])
             if old_header == new_header:
-               petl.appendcsv(tables_by_id[id], source = tbl_device_file)
+               petl.appendcsv(tables_by_id[id], source = tbl_device_file, delimiter = ';')
             else:#TODO: write to the new file
                raise ValueError(f"Incompatible headers:\n old={old_header}\n new={new_header}")
         else:       
