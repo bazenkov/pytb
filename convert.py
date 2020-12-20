@@ -118,7 +118,119 @@ def check_devices(folder, tb_access_file = None):
     ts,key_1,key_2
     '''
 
-def transform(ts_kv_table, devices):
+# def transform(ts_kv_table, devices):
+#     """The table has the following structure:
+#     +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+
+#     | entity_type | entity_id                       | key           | ts            | bool_v | str_v | long_v | dbl_v |
+#     +=============+=================================+===============+===============+========+=======+========+=======+
+#     | DEVICE      | 1ea47494dc14d40bd76a73c738b665f | Temperature   | 1583010011665 |        |       |        | -1.8  |
+#     +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+
+#     | DEVICE      | 1ea47494dc14d40bd76a73c738b665f | WindDirection | 1583010000692 |        |       | 227    |       |
+#     +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+  
+    
+#     The output is a dictionary {device_id:table} of tables like that:
+#     +--------------+--------------+---------------+
+#     | ts           | Temperature  | WindDirection |
+#     +--------------+--------------+---------------+
+#     |1583010011665 | -1.8         |  230          |
+#     +--------------+--------------+---------------+
+#     |1583010000692 |   -2.5       | 227           |
+#     +--------------+--------------+---------------+
+#     """
+    
+    
+
+#     def get_ts(row):
+#         return int(row[3])
+
+#     def get_key(row):
+#         return row[2]
+
+#     def get_device_id(row):
+#         return row[1]
+
+#     i = 0
+#     n = 3
+#     device_tables = dict([(d_id, []) for d_id in devices])
+    
+#     #TODO
+#     #https://petl.readthedocs.io/en/stable/transform.html#selecting-rows
+#     #https://petl.readthedocs.io/en/stable/transform.html#reshaping-tables
+
+#     #for d_id in device_tables:
+#     #    header = ['ts'] + find_keys(d_id, ts_kv_table)
+#     #    device_tables[d_id].append(header)
+
+#     #lookup (id, ts)
+
+#     #
+
+#     for row in ts_kv_table[1:]:
+#         #TODO
+#         #get device short name
+#         #create device table
+#         #add the key to the table
+#         #device id in TB is java uuid
+#         #id in postgres is postgres uuid
+#         #I should extract device table from postgres directly
+#         device_id = get_device_id(row)
+#         key = get_key(row)
+#         ts = get_ts(row)
+#         label = devices[device_id]['label']
+#         if label not in device_tables:
+#             device_tables[label] = [['ts', key], [ts, get_value(row)]]
+#         else:
+#             keys = set(petl.util.base.header(device_tables[label]))
+#             if key not in keys:
+#                 device_tables[label] = [['ts', key], [ts, get_value(row)]]
+#         print(device_tables[label] )
+#         if i>n:
+#             break
+#         i+=1
+
+def get_value(row):
+    #IND_VAL = 4
+    keys = ['bool_v', 'str_v', 'long_v', 'dbl_v']
+    conv = [bool, str, int, float]
+    for i,k in enumerate(keys):
+        if row[k]:
+            return conv[i](row[k])
+    return ''
+
+def get_ts(row):
+    return int(row[3])
+
+def transform_fields(tbl):
+    """The input:
+    +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+
+    | entity_type | entity_id                       | key           | ts            | bool_v | str_v | long_v | dbl_v |
+    +=============+=================================+===============+===============+========+=======+========+=======+
+    | DEVICE      | 1ea47494dc14d40bd76a73c738b665f | Temperature   | 1583010011665 |        |       |        | -1.8  |
+    +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+
+    | DEVICE      | 1ea47494dc14d40bd76a73c738b665f | WindDirection | 1583010000692 |        |       | 227    |       |
+    +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+  
+    
+    The output:
+    +-------------+---------------------------------+---------------+---------------+--------+
+    | entity_type | entity_id                       | key           | ts            | value  |
+    +=============+=================================+===============+===============+========+
+    | DEVICE      | 1ea47494dc14d40bd76a73c738b665f | Temperature   | 1583010011665 |  -1.8  |
+    +-------------+---------------------------------+---------------+---------------+--------+
+    | DEVICE      | 1ea47494dc14d40bd76a73c738b665f | WindDirection | 1583010000692 |   227  |
+    +-------------+---------------------------------+---------------+---------------+--------+
+    
+    """
+    ts_kv_table = petl.transform.conversions.convert(tbl, 'ts', int)
+    #print(get_value(ts_kv_table[1]))
+    ts_kv_table = petl.addfield(ts_kv_table, 'value', lambda row: get_value(row))
+    ts_kv_table = petl.cutout(ts_kv_table, 'bool_v', 'str_v', 'long_v', 'dbl_v')
+    return ts_kv_table
+
+KEYS_TO_REMOVE = {'error', 'Breaker', 'deltaP1', 'deltaP2', 'deltaP3', 'deltaQ1', 'deltaQ2', 'deltaQ3' }
+#KEYS_TO_REMOVE = {'A'}
+
+#@profile
+def lookup_and_transform(ts_kv_table):
     """The table has the following structure:
     +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+
     | entity_type | entity_id                       | key           | ts            | bool_v | str_v | long_v | dbl_v |
@@ -138,88 +250,18 @@ def transform(ts_kv_table, devices):
     +--------------+--------------+---------------+
     """
     
-    
-
-    def get_ts(row):
-        return int(row[3])
-
-    def get_key(row):
-        return row[2]
-
-    def get_device_id(row):
-        return row[1]
-
-    i = 0
-    n = 3
-    device_tables = dict([(d_id, []) for d_id in devices])
-    
-    #TODO
-    #https://petl.readthedocs.io/en/stable/transform.html#selecting-rows
-    #https://petl.readthedocs.io/en/stable/transform.html#reshaping-tables
-
-    #for d_id in device_tables:
-    #    header = ['ts'] + find_keys(d_id, ts_kv_table)
-    #    device_tables[d_id].append(header)
-
-    #lookup (id, ts)
-
-    #
-
-    for row in ts_kv_table[1:]:
-        #TODO
-        #get device short name
-        #create device table
-        #add the key to the table
-        #device id in TB is java uuid
-        #id in postgres is postgres uuid
-        #I should extract device table from postgres directly
-        device_id = get_device_id(row)
-        key = get_key(row)
-        ts = get_ts(row)
-        label = devices[device_id]['label']
-        if label not in device_tables:
-            device_tables[label] = [['ts', key], [ts, get_value(row)]]
-        else:
-            keys = set(petl.util.base.header(device_tables[label]))
-            if key not in keys:
-                device_tables[label] = [['ts', key], [ts, get_value(row)]]
-        print(device_tables[label] )
-        if i>n:
-            break
-        i+=1
-
-def get_value(row):
-    #IND_VAL = 4
-    keys = ['bool_v', 'str_v', 'long_v', 'dbl_v']
-    conv = [bool, str, int, float]
-    for i,k in enumerate(keys):
-        if row[k]:
-            return conv[i](row[k])
-    return ''
-
-def get_ts(row):
-    return int(row[3])
-
-def transform_fields(tbl):
-    ts_kv_table = petl.transform.conversions.convert(tbl, 'ts', int)
-    #print(get_value(ts_kv_table[1]))
-    ts_kv_table = petl.addfield(ts_kv_table, 'value', lambda row: get_value(row))
-    ts_kv_table = petl.cutout(ts_kv_table, 'bool_v', 'str_v', 'long_v', 'dbl_v')
-    return ts_kv_table
-
-#@profile
-def lookup_and_transform(ts_kv_table):
     lkp = petl.lookup(ts_kv_table, 'entity_id', value=('key','ts','value'))
     for id in lkp:
         #lkp[id] = sorted(lkp[id], key=lambda row : get_ts(row))
         #tbl = [petl.header(ts_kv_table)] + lkp[id]
         tbl = [('key','ts','value')] + lkp[id]
         #tbl = petl.cutout(tbl, 'entity_type', 'entity_id')
-        tbl_by_ts = petl.recast(tbl, variablefield='key', valuefield='value')
-        tbl_by_ts = petl.transform.headers.sortheader(tbl_by_ts)
-        tbl_by_ts = petl.transform.basics.movefield(tbl_by_ts, 'ts', 0)
-        tbl_by_ts = petl.sort(tbl_by_ts, 'ts')#, cache = False
-        lkp[id] = tbl_by_ts
+        tbl = petl.recast(tbl, variablefield='key', valuefield='value')
+        cut_keys = KEYS_TO_REMOVE & set(petl.fieldnames(tbl))
+        tbl = petl.cutout(tbl, *cut_keys)
+        tbl = petl.transform.headers.sortheader(tbl)
+        tbl = petl.transform.basics.movefield(tbl, 'ts', 0)
+        lkp[id] = petl.sort(tbl, 'ts')
     return lkp
 
 def load(tables_by_id, output_folder, devices):
