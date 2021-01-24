@@ -57,11 +57,14 @@ import os.path as path
 import petl
 import tb_rest as tb
 from unidecode import unidecode
+import argparse
 #from memory_profiler import profile
 
 FORBIDDEN_SYMBOLS = ",\"*/:<>?\\|+;=()[] "
 REPLACE_SYMBOLS = "_"*len(FORBIDDEN_SYMBOLS)
 TRANS_TABLE = FORBIDDEN_SYMBOLS.maketrans(FORBIDDEN_SYMBOLS, REPLACE_SYMBOLS)
+
+TB_VERSIONS = {'old', '2.5.4'}
 
 def valid_name(device_name):
     return unidecode(device_name.translate(TRANS_TABLE)).replace("__", "_").replace("___", "_").strip("_")
@@ -82,12 +85,17 @@ def load_devices(file):
         dictionary like {'id_1': {name:'Device 1'}, ...}
 
     '''
-    tbl_devices = petl.io.csv.fromcsv(file, delimiter=';')
+    tbl_devices = petl.io.csv.fromcsv(file, delimiter=';', encoding='utf-8')
     tbl_devices = petl.cutout(tbl_devices, 'customer_id', 'search_text', 'tenant_id')
     #PETL docs:
     #https://petl.readthedocs.io/en/stable/util.html#petl.util.lookups.dictlookupone
     devices = petl.dictlookupone(tbl_devices, 'id')
     return devices
+
+def load_keys(file):
+    tbl_keys = petl.io.csv.fromcsv(file, delimiter=';', encoding='utf-8', header=['key', 'key_id'])
+    keys = petl.dictlookupone(tbl_keys, 'key_id')
+    return keys
 
 def check_devices(folder, tb_access_file = None):
     device_file = devices_path(folder)
@@ -211,8 +219,8 @@ def get_value(row):
 def get_ts(row):
     return int(row[3])
 
-def transform_fields(tbl):
-    """The input:
+def transform_fields_old(tbl):
+    """The input is a dump of ts_kv table for TB version <= 2.5.4:
     +-------------+---------------------------------+---------------+---------------+--------+-------+--------+-------+
     | entity_type | entity_id                       | key           | ts            | bool_v | str_v | long_v | dbl_v |
     +=============+=================================+===============+===============+========+=======+========+=======+
@@ -232,6 +240,34 @@ def transform_fields(tbl):
     
     """
     ts_kv_table = petl.transform.conversions.convert(tbl, 'ts', int)
+    #print(get_value(ts_kv_table[1]))
+    ts_kv_table = petl.addfield(ts_kv_table, 'value', lambda row: get_value(row))
+    ts_kv_table = petl.cutout(ts_kv_table, 'bool_v', 'str_v', 'long_v', 'dbl_v')
+    return ts_kv_table
+
+def transform_fields_254(tbl, keys):
+    """The input is a dump of ts_kv table for TB version 2.5.4:
+    +----------------------------------+---------------+---------------+--------+-------+--------+-------+
+    |  entity_id                       | key           | ts            | bool_v | str_v | long_v | dbl_v |
+    +==================================+===============+===============+========+=======+========+=======+
+    |  1ea47494dc14d40bd76a73c738b665f | Temperature   | 1583010011665 |        |       |        | -1.8  |
+    +----------------------------------+---------------+---------------+--------+-------+--------+-------+
+    |  1ea47494dc14d40bd76a73c738b665f | WindDirection | 1583010000692 |        |       | 227    |       |
+    +----------------------------------+---------------+---------------+--------+-------+--------+-------+  
+    
+    The output:
+    +---------------------------------+---------------+---------------+--------+
+    | entity_id                       | key           | ts            | value  |
+    +=================================+===============+===============+========+
+    | 1ea47494dc14d40bd76a73c738b665f | Temperature   | 1583010011665 |  -1.8  |
+    +---------------------------------+---------------+---------------+--------+
+    | 1ea47494dc14d40bd76a73c738b665f | WindDirection | 1583010000692 |   227  |
+    +---------------------------------+---------------+---------------+--------+
+    
+    """
+    ts_kv_table = petl.transform.conversions.convert(tbl,
+         {'ts': int,
+          'key': lambda k: keys[k]} )
     #print(get_value(ts_kv_table[1]))
     ts_kv_table = petl.addfield(ts_kv_table, 'value', lambda row: get_value(row))
     ts_kv_table = petl.cutout(ts_kv_table, 'bool_v', 'str_v', 'long_v', 'dbl_v')
@@ -292,11 +328,20 @@ def load(tables_by_id, output_folder, devices):
             petl.tocsv(tables_by_id[id], tbl_device_file, delimiter = ';')
 
 #@profile
-def convert_file(ts_file, devices, output_folder):
+def convert_file_old(ts_file, devices, output_folder):
     ts_kv_table = petl.io.csv.fromcsv(ts_file, header = HEADER, delimiter=';')
     print(f"Loaded {len(ts_kv_table)} rows.")
     print("Transforming fields...")
-    ts_kv_table = transform_fields(ts_kv_table)
+    ts_kv_table = transform_fields_older(ts_kv_table)
+    lkp = lookup_and_transform(ts_kv_table)
+    load(lkp, output_folder, devices)
+    print(f"Success. Data from {len(lkp)} devices saved to {output_folder}")
+
+def convert_file_254(ts_file, devices, output_folder, keys = None):
+    ts_kv_table = petl.io.csv.fromcsv(ts_file, header = HEADER, delimiter=';')
+    print(f"Loaded {len(ts_kv_table)} rows.")
+    print("Transforming fields...")
+    ts_kv_table = transform_fields_254(ts_kv_table, keys)
     lkp = lookup_and_transform(ts_kv_table)
     load(lkp, output_folder, devices)
     print(f"Success. Data from {len(lkp)} devices saved to {output_folder}")
@@ -308,14 +353,14 @@ def is_ts(name):
     #return ext == 'csv'
     return name[:5] == "ts_kv"
 
-def convert_folder(input_folder, devices, output_folder):
+def convert_folder(input_folder, devices, output_folder, converter = convert_file_old):
     files = [f for f in os.scandir(input_folder)]
     files = sorted(files, key = lambda x: os.stat(x).st_mtime)
     for f in files:
         if is_ts(f.name):
             try:
                 print(f"Processing {f.path} ...")
-                convert_file(f.path, devices, output_folder)
+                converter(f.path, devices, output_folder)
             except Exception as e:
                 print(e)
         else:
@@ -323,16 +368,41 @@ def convert_folder(input_folder, devices, output_folder):
 
 HEADER = ['entity_type', 'entity_id', 'key', 'ts', 'bool_v', 'str_v', 'long_v', 'dbl_v']
 
+
+
+def get_args():
+    parser = argparse.ArgumentParser(description="Converts the raw dump of ts_kv table to the separate csv files for each device.")
+    parser.add_argument('-v', 
+            help = "Version of Thingsboard. Possible values are 'old' or '2.5.4'. The default value is '2.5.4'",
+            default='2.5.4',
+            choices = TB_VERSIONS)
+    parser.add_argument('--keys', help = "CSV file where each line is 'key;key_id'. Needed for Thingsboard version 2.5.4")
+    parser.add_argument('input', help = "file or folder to convert")
+    parser.add_argument('devices', help = "CSV file copied from device table")
+    parser.add_argument('output_folder', help = "the directory where the dataset will be converted")
+    return parser.parse_args()
+
+converter = {'old': convert_file_old,
+            '2.5.4': convert_file_254}
+
 if __name__ == "__main__":
     #parse command-line arguments
-    first_arg = argv[1]
-    devices_file = argv[2] 
-    output_folder = argv[3]
-    check_dir(output_folder)
-    devices = load_devices(devices_file)
-    print(f"Loaded {len(devices)} from {devices_file}")
-    if path.isfile(first_arg):
-        convert_file(first_arg, devices, output_folder)
-    elif path.isdir(first_arg):
-        convert_folder(first_arg, devices, output_folder)
+    #TODO:
+    #1. Create general converter class with the methods:
+    #read - read the table and cutout redundant fields. Substitute key names for version 2.5.4
+    #transform - transform the table to the unified format: entity_id, key, ts, value
+    #lookup - make the dictionary with devices
+    #load - write the dictionary as dataset
+    #
+
+    args = get_args()
+    check_dir(args.output_folder)
+    devices = load_devices(args.devices)
+    print(f"Loaded {len(devices)} from {args.devices}")
+    if 'keys' in vars(args):
+        keys = load_keys(args.keys)
+    if path.isdir(args.input):
+        convert_folder(args.input, devices, args.output_folder, converter[args.v])
+    else:
+        converter[args.v](args.input, devices, args.output_folder)
    
