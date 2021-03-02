@@ -297,9 +297,9 @@ def list_tenant_assets(tb_url, bearerToken, assetType=None, limit = 100, textSea
     else:
         return [], resp
 
-def get_tenant_devices(tb_url, bearerToken, deviceType=None, limit = 2000, textSearch = None, get_credentials = False):
+def get_tenant_devices(tb_url, bearerToken, deviceType=None, pageSize = 100, page=0, textSearch = None, get_credentials = False):
     url = f'{tb_url}/api/tenant/devices'
-    params = {'limit':limit}
+    params = {'pageSize':pageSize, 'page':page}
     if deviceType:
         params['type']=deviceType
     if textSearch:
