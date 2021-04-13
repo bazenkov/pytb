@@ -68,7 +68,7 @@ if __name__ == "__main__":
     if 'device_type' in params.keys():#if device type is specified, ignore the specified devices
         devices, resp = tb.get_tenant_devices(tb_connection.url, tb_connection.get_token(), params['device_type'])
         if not tb.request_success(resp):
-            raise tb.ConnectionError(self, resp)
+            raise tb.ConnectionError(resp)
         params['devices'] = dwn.name_id_dict(devices)
     print("*** Purge started ***")
     print(f"Total interval: {params['start_time'].strftime(TIME_FORMAT)}-{params['end_time'].strftime(TIME_FORMAT)}")
