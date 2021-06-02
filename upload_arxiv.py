@@ -1,10 +1,10 @@
 from os import error
 from sys import stderr
-import tb_rest as tb
 import json
 from datetime import datetime
 import time
 import argparse
+import requests
 
 DELAY_MS = 500
 
@@ -13,17 +13,29 @@ def log_error(entry, resp):
     print(f"Response code {resp.status_code} for entry: {entry}", file=stderr)
 
 
+def upload_telemetry(tb_url, deviceToken, json_data):
+    # http(s)://host:port/api/v1/$ACCESS_TOKEN/telemetry
+    url = tb_url + '/api/v1/' + deviceToken + '/telemetry'
+    headers = {'Content-Type': 'application/json'}
+    resp = requests.post(url, headers=headers, json=json_data)
+    return resp
+
+
+def from_js_timestamp(js_timestamp):
+    return round(int(js_timestamp) / 1e3)
+
+
 def upload(tb_url, data, start_ts, end_ts, delay=DELAY_MS):
     """data is array of json:
     [{"ts": 1616965289148, "devEui": "MOXAKON1-MR234-017", "values": {"PT": 0,...} }, {...}, ... ]
     """
 
     for entry in data:
-        if start_ts <= tb.fromJsTimestamp(entry['ts']) < end_ts:
+        if start_ts <= from_js_timestamp(entry['ts']) < end_ts:
             device_token = entry['devEui']
             message_json = entry
             del message_json['devEui']
-            resp = tb.upload_telemetry(tb_url, device_token, message_json)
+            resp = upload_telemetry(tb_url, device_token, message_json)
             if resp.status_code != 200:
                 log_error(entry, resp)
             time.sleep(delay / DELAY_MS)
