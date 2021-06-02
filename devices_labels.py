@@ -20,20 +20,20 @@ def group_by_types(devices):
     return device_by_types
 
 
-def sort_types(device_by_types):
-    def none_to_blank(s):
-        if s:
-            return s
-        else:
-            return "z"
-    for group in device_by_types.values():
-        group.sort(key = lambda x: x['name'])
+# def sort_types(device_by_types):
+#    def none_to_blank(s):
+#        if s:
+#            return s
+#        else:
+#            return "z"
+#    for group in device_by_types.values():
+#        group.sort(key = lambda x: x['createdTime'])
 
 def assign_labels(device_by_types):
     for d_type in device_by_types:
         devices = device_by_types[d_type]
         non_labeled_devices = [d for d in devices if not d['label']]
-        non_labeled_devices.sort(key = lambda x: x['name'])
+        non_labeled_devices.sort(key = lambda x: x['createdTime'])
         num_labels = len(devices) - len(non_labeled_devices)
         start_num = num_labels
         for i,d in enumerate(non_labeled_devices):

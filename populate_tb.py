@@ -4,7 +4,7 @@ import random
 import tb_rest as tb
 
 
-WAIT_SEC = 30
+WAIT_SEC = 10
 
 if __name__ == "__main__":
     tb_params = tb.load_access_parameters(argv[1])
@@ -18,6 +18,11 @@ if __name__ == "__main__":
     num = int(argv[2])
     for i in range(num):
         for d in devices:
-            json_data = {'A': random.randint(0, 10), 'B':random.random()*10}
+            if d['type']=='thermostat':
+                json_data = {'T': random.randint(0, 50), 'C':random.random()*10}
+            elif d['type']=='test':
+                json_data = {'K': random.randint(0, 100), 'P':5-random.random()*10}
+            else:
+                json_data = {'A': random.randint(0, 10), 'B':random.random()*10}
             tb.upload_telemetry(tb_con.url, d['token'], json_data)
     time.sleep(WAIT_SEC)

@@ -1,0 +1,12 @@
+id;additional_info;customer_id;type;name;label;search_text;tenant_id
+1ea77deba0cd670826e5f6f68ecec50;"{""description"":""Demo device that is used in sample applications that upload data from DHT11 temperature and humidity sensor""}";1b21dd2138140008080808080808080;default;DHT11 Demo Device;default_0;dht11 demo device;1ea77deb9181630826e5f6f68ecec50
+1ea77deba107ff0826e5f6f68ecec50;"{""description"":""Demo device that is used in Raspberry Pi GPIO control sample application""}";1b21dd2138140008080808080808080;default;Raspberry Pi Demo Device;default_1;raspberry pi demo device;1ea77deb9181630826e5f6f68ecec50
+1ea77deb9eb92d0826e5f6f68ecec50;null;1ea77deb96ffa30826e5f6f68ecec50;default;Test Device A1;default_2;test device a1;1ea77deb9181630826e5f6f68ecec50
+1ea77deb9fad510826e5f6f68ecec50;null;1ea77deb96ffa30826e5f6f68ecec50;default;Test Device A2;default_3;test device a2;1ea77deb9181630826e5f6f68ecec50
+1ea77deb9ffde20826e5f6f68ecec50;null;1ea77deb96ffa30826e5f6f68ecec50;default;Test Device A3;default_4;test device a3;1ea77deb9181630826e5f6f68ecec50
+1ea77deba03d5c0826e5f6f68ecec50;null;1ea77deb9838230826e5f6f68ecec50;default;Test Device B1;default_5;test device b1;1ea77deb9181630826e5f6f68ecec50
+1ea77deba084290826e5f6f68ecec50;null;1ea77deb9857e00826e5f6f68ecec50;default;Test Device C1;default_6;test device c1;1ea77deb9181630826e5f6f68ecec50
+1eaa599aceb69f09c426b68c14fd0ab;null;1b21dd2138140008080808080808080;Mercury;Счетчик;Mercury_0;счетчик;1ea77deb9181630826e5f6f68ecec50
+1eaa59bcdeb38409c426b68c14fd0ab;null;1b21dd2138140008080808080808080;Mercury;0-счетчик;Mercury_2;0-счетчик;1ea77deb9181630826e5f6f68ecec50
+1eaa59a8f9fe9b09c426b68c14fd0ab;null;1b21dd2138140008080808080808080;Mercury;Bmeter;Mercury_3;bmeter;1ea77deb9181630826e5f6f68ecec50
+1eaa59e475ceeb09c426b68c14fd0ab;null;1b21dd2138140008080808080808080;Mercury;Cmeter;Mercury_3;cmeter;1ea77deb9181630826e5f6f68ecec50
