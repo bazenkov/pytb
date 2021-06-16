@@ -26,7 +26,7 @@ def from_js_timestamp(js_timestamp):
 
 
 def upload(tb_url, data, start_ts, end_ts, delay=DELAY_MS):
-    """data is array of json:
+    """data is json array:
     [{"ts": 1616965289148, "devEui": "MOXAKON1-MR234-017", "values": {"PT": 0,...} }, {...}, ... ]
     """
 
@@ -66,8 +66,10 @@ def get_ts(timestr):
 
 
 def main(args):
-    data = open(args.input).readlines()
-    data = map(lambda x: json.loads(x)[0], data)
+    # data = open(args.input).readlines()
+    # data[-1] = "]"  # replace '],' by ']'
+    data = json.load(open(args.input))
+    # data = map(lambda x: json.loads(x)[0], data)
     upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
 
 
