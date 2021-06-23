@@ -94,10 +94,13 @@ def main(args):
     # data = open(args.input).readlines()
     # data[-1] = "]"  # replace '],' by ']'
     #data = json.load(open(args.input))
+    print(f"Reading {args.input}...")
     data = json.loads(make_json(args.input))
 
     # data = map(lambda x: json.loads(x)[0], data)
+    print(f"Uploading data from {args.start} to {args.end}...")
     upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
+    print(f"Completed")
 
 
 if __name__ == "__main__":
