@@ -368,9 +368,11 @@ def get_args():
     parser.add_argument('-v',
                         help="Version of Thingsboard. Possible values are 'old', '2.5.4' or '3.2'.",
                         choices=TB_VERSIONS)
-    parser.add_argument('--keys', help="CSV file where each line is 'key;key_id'. Needed for Thingsboard version 2.5.4")
+    parser.add_argument('--keys',
+                        help="CSV file where each line is 'key;key_id'. Needed for Thingsboard version 2.5.4 and 3.2")
+    parser.add_argument('--keys-include', help="JSON file with keys to be included in the dataset")
     parser.add_argument('input', help="file or folder to convert")
-    parser.add_argument('devices', help="CSV file copied from device table")
+    parser.add_argument('devices', help="CSV file copied from device table.")
     parser.add_argument('output_folder', help="the directory where the dataset will be converted")
     return parser.parse_args()
 

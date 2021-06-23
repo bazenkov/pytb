@@ -39,6 +39,7 @@ class TbConnection:
         if self.expired() or force:
             print("Refreshing token ...")
             self.token, self.refresh_token, tokenAuthResp = refresh_token(self.url, self.token, self.refresh_token)
+            self.token_time = dt.datetime.now()
             if not request_success(tokenAuthResp):
                 print("Token refresh failed, obtaining a new token ...")
                 self.token, self.refresh_token, new_resp = getToken(self.url, self.user, self.password)
@@ -330,7 +331,7 @@ def list_tenant_assets(tb_url, bearerToken, assetType=None, limit=100, textSearc
         return [], resp
 
 
-def get_tenant_devices(tb_url, bearerToken, deviceType=None, pageSize=100, page=0, textSearch=None,
+def get_tenant_devices(tb_url, bearerToken, deviceType=None, pageSize=500, page=0, textSearch=None,
                        get_credentials=False):
     url = f'{tb_url}/api/tenant/devices'
     params = {'pageSize': pageSize, 'page': page}
