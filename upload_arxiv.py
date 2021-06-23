@@ -5,6 +5,7 @@ from datetime import datetime
 import time
 import argparse
 import requests
+import gzip as gz
 
 DELAY_MS = 500
 
@@ -53,7 +54,7 @@ def get_args():
                      The data flow is being balanced such that TB is not overloaded.")
     parser.add_argument('--delay', help="Time in milliseconds between messages.", default=DELAY_MS)
     parser.add_argument('--start', help="The time of the beginning of the target period (including). \
-                        String in ISO format as \"2021-01-25 09:01:00\" ", default='1970-01-01 00:00:00')
+                        String in ISO format as \"2021-01-25 09:01:00\" ", default='1970-01-02 12:00:00')
     parser.add_argument('--end', help="The time of the end of the target period (excluding). \
                         String in ISO format as \"2021-01-25 09:01:00\" ", default='2999-01-01 00:00:00')
     parser.add_argument('url', help="TB host url")
@@ -65,10 +66,36 @@ def get_ts(timestr):
     return datetime.fromisoformat(timestr).timestamp()
 
 
+def is_gzip(path):
+    return path[-2:] == "gz"
+
+
+def make_json(path):
+    json_str = ""
+    bracket_found = False
+    with (gz.open(path, 'rt') if is_gzip(path) else open(path)) as f:
+        for line in f.readlines():
+            if line.rstrip('\n') == "],":
+                json_str += ","
+                bracket_found = True
+            else:
+                if bracket_found:
+                    # skip current "[\n" line and proceed to the next
+                    bracket_found = False
+                else:
+                    json_str += line.rstrip('\n').lstrip('\t')
+    if bracket_found:
+        # if the last line of the file was like "]," then json str is like "[{...},...,{},"
+        json_str[-1] = "]"
+    return json_str
+
+
 def main(args):
     # data = open(args.input).readlines()
     # data[-1] = "]"  # replace '],' by ']'
-    data = json.load(open(args.input))
+    #data = json.load(open(args.input))
+    data = json.loads(make_json(args.input))
+
     # data = map(lambda x: json.loads(x)[0], data)
     upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
 
