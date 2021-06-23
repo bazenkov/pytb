@@ -86,7 +86,7 @@ def make_json(path):
                     json_str += line.rstrip('\n').lstrip('\t')
     if bracket_found:
         # if the last line of the file was like "]," then json str is like "[{...},...,{},"
-        json_str[-1] = "]"
+        json_str = json_str[:-1] + "]"
     return json_str
 
 
