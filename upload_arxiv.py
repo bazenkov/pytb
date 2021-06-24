@@ -52,6 +52,7 @@ def get_args():
     parser = argparse.ArgumentParser(
         description="Uploads collector arxiv to Thingsboard. \
                      The data flow is being balanced such that TB is not overloaded.")
+    parser.add_argument('--format', help="expand or pack", default="pack")
     parser.add_argument('--delay', help="Time in milliseconds between messages.", default=DELAY_MS)
     parser.add_argument('--start', help="The time of the beginning of the target period (including). \
                         String in ISO format as \"2021-01-25 09:01:00\" ", default='1970-01-02 12:00:00')
@@ -70,10 +71,14 @@ def is_gzip(path):
     return path[-2:] == "gz"
 
 
+def open_gz(path):
+    return gz.open(path, 'rt') if is_gzip(path) else open(path)
+
+
 def make_json(path):
     json_str = ""
     bracket_found = False
-    with (gz.open(path, 'rt') if is_gzip(path) else open(path)) as f:
+    with open_gz(path) as f:
         for line in f.readlines():
             if line.rstrip('\n') == "],":
                 json_str += ","
@@ -91,15 +96,25 @@ def make_json(path):
 
 
 def main(args):
-    # data = open(args.input).readlines()
-    # data[-1] = "]"  # replace '],' by ']'
-    #data = json.load(open(args.input))
-    print(f"Reading {args.input}...")
-    data = json.loads(make_json(args.input))
+    def upload_expand():
+        data = json.loads(make_json(args.input))
+        print(f"Uploading data from {args.start} to {args.end}...")
+        upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
 
+    def upload_pack():
+        with open_gz(args.input) as f:
+            print(f"Uploading data from {args.start} to {args.end}...")
+            for line in f.readlines():
+                data = json.loads(line)
+                upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
+    # data = open(args.input).readlines()
+    # data = json.load(open(args.input))
     # data = map(lambda x: json.loads(x)[0], data)
-    print(f"Uploading data from {args.start} to {args.end}...")
-    upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
+    print(f"Reading {args.input}...")
+    if args.format == "expand":
+        upload_expand()
+    else:
+        upload_pack()
     print(f"Completed")
 
 
