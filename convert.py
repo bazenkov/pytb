@@ -170,6 +170,11 @@ def transform_fields_32(tbl, ts_kv_dict):
 
 #KEYS_TO_REMOVE = {"remove": {'error', 'Breaker', 'deltaP1', 'deltaP2', 'deltaP3', 'deltaQ1', 'deltaQ2', 'deltaQ3'}}
 
+def sort_table(tbl):
+    new_tbl = petl.transform.headers.sortheader(tbl)
+    new_tbl = petl.transform.basics.movefield(new_tbl, 'ts', 0)
+    return petl.sort(new_tbl, 'ts')
+
 def lookup_and_transform(ts_kv_table, keys):
     """The table has the following structure:
     +---------------------------------+---------------+---------------+--------+
@@ -197,9 +202,10 @@ def lookup_and_transform(ts_kv_table, keys):
         if keys:
             cut_keys = set(keys['remove']) & set(petl.fieldnames(tbl))
             tbl = petl.cutout(tbl, *cut_keys)
-        tbl = petl.transform.headers.sortheader(tbl)
-        tbl = petl.transform.basics.movefield(tbl, 'ts', 0)
-        lkp[entity_id] = petl.sort(tbl, 'ts')
+    #    tbl = petl.transform.headers.sortheader(tbl)
+    #    tbl = petl.transform.basics.movefield(tbl, 'ts', 0)
+    #    lkp[entity_id] = petl.sort(tbl, 'ts')
+        lkp[entity_id] = sort_table(tbl)
     return lkp
 
 
@@ -214,8 +220,15 @@ def load(tables_by_id, output_folder, devices):
             new_header = petl.header(tables_by_id[device_id])
             if old_header == new_header:
                 petl.appendcsv(tables_by_id[device_id], source=tbl_device_file, delimiter=';')
-            else:  # TODO: write to the new file
-                raise ValueError(f"Incompatible headers:\n old={old_header}\n new={new_header}")
+            else:
+                tbl_new = petl.cat(tbl_old, tables_by_id[device_id])
+                tbl_new = sort_table(tbl_new)
+                # tbl_new = petl.sortheader(tbl_new)
+                file_new = tbl_device_file+"_new.csv"
+                petl.tocsv(tbl_new, file_new, delimiter=';')
+                os.remove(tbl_device_file)
+                os.renames(file_new, tbl_device_file)
+                #raise ValueError(f"Incompatible headers:\n old={old_header}\n new={new_header}")
         else:
             petl.tocsv(tables_by_id[device_id], tbl_device_file, delimiter=';')
 
