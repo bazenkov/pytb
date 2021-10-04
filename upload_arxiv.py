@@ -7,7 +7,7 @@ import argparse
 import requests
 import gzip as gz
 
-DELAY_MS = 500
+DELAY_MS = 1000
 
 
 def log_error(entry, resp):
@@ -26,7 +26,7 @@ def from_js_timestamp(js_timestamp):
     return round(int(js_timestamp) / 1e3)
 
 
-def upload(tb_url, data, start_ts, end_ts, delay=DELAY_MS):
+def upload(tb_url, data, start_ts, end_ts, delay):
     """data is json array:
     [{"ts": 1616965289148, "devEui": "MOXAKON1-MR234-017", "values": {"PT": 0,...} }, {...}, ... ]
     """
@@ -53,7 +53,7 @@ def get_args():
         description="Uploads collector arxiv to Thingsboard. \
                      The data flow is being balanced such that TB is not overloaded.")
     parser.add_argument('--format', help="expand or pack", default="pack")
-    parser.add_argument('--delay', help="Time in milliseconds between messages.", default=DELAY_MS)
+    parser.add_argument('--delay', help="Time in milliseconds between messages.", default=DELAY_MS, type=int)
     parser.add_argument('--start', help="The time of the beginning of the target period (including). \
                         String in ISO format as \"2021-01-25 09:01:00\" ", default='1970-01-02 12:00:00')
     parser.add_argument('--end', help="The time of the end of the target period (excluding). \
@@ -105,7 +105,7 @@ def main(args):
         with open_gz(args.input) as f:
             print(f"Uploading data from {args.start} to {args.end}...")
             for line in f.readlines():
-                if line[-1] == ",":
+                if line[-2] == ",":
                     data = json.loads(line[:-2])
                 else:
                     data = json.loads(line)
