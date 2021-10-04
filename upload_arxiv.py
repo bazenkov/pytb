@@ -105,7 +105,10 @@ def main(args):
         with open_gz(args.input) as f:
             print(f"Uploading data from {args.start} to {args.end}...")
             for line in f.readlines():
-                data = json.loads(line)
+                if line[-1] == ",":
+                    data = json.loads(line[:-2])
+                else:
+                    data = json.loads(line)
                 upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
     # data = open(args.input).readlines()
     # data = json.load(open(args.input))
