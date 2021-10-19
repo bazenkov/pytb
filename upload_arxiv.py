@@ -1,5 +1,7 @@
 from os import error
+import os
 from sys import stderr
+from os import path
 import json
 from datetime import datetime
 import time
@@ -11,7 +13,7 @@ DELAY_MS = 1000
 
 
 def log_error(entry, resp):
-    print(f"Response code {resp.status_code} for entry: {entry}", file=stderr)
+    print(f"ERROR at {datetime.now()}. Response code {resp.status_code}: {resp.text}", file=stderr)
 
 
 def upload_telemetry(tb_url, deviceToken, json_data):
@@ -26,6 +28,9 @@ def from_js_timestamp(js_timestamp):
     return round(int(js_timestamp) / 1e3)
 
 
+MAX_TRY = 5
+
+
 def upload(tb_url, data, start_ts, end_ts, delay):
     """data is json array:
     [{"ts": 1616965289148, "devEui": "MOXAKON1-MR234-017", "values": {"PT": 0,...} }, {...}, ... ]
@@ -36,9 +41,17 @@ def upload(tb_url, data, start_ts, end_ts, delay):
             device_token = entry['devEui']
             message_json = entry
             del message_json['devEui']
-            resp = upload_telemetry(tb_url, device_token, message_json)
-            if resp.status_code != 200:
-                log_error(entry, resp)
+            stop = False
+            try_count = 0
+            while not stop and try_count < MAX_TRY:
+                resp = upload_telemetry(tb_url, device_token, message_json)
+                if resp.status_code == 200:
+                    stop = True
+                else:
+                    log_error(entry, resp)
+                    try_count += 1
+                    time.sleep(delay / DELAY_MS)
+
             time.sleep(delay / DELAY_MS)
 
 
@@ -58,6 +71,7 @@ def get_args():
                         String in ISO format as \"2021-01-25 09:01:00\" ", default='1970-01-02 12:00:00')
     parser.add_argument('--end', help="The time of the end of the target period (excluding). \
                         String in ISO format as \"2021-01-25 09:01:00\" ", default='2999-01-01 00:00:00')
+    # parser.add_argument("--match", help="The pattern of the log files names")
     parser.add_argument('url', help="TB host url")
     parser.add_argument('input', help="File with json data to upload.")
     return parser.parse_args()
@@ -67,18 +81,18 @@ def get_ts(timestr):
     return datetime.fromisoformat(timestr).timestamp()
 
 
-def is_gzip(path):
-    return path[-2:] == "gz"
+def is_gzip(filename):
+    return filename[-2:] == "gz"
 
 
-def open_gz(path):
-    return gz.open(path, 'rt') if is_gzip(path) else open(path)
+def open_gz(filename):
+    return gz.open(filename, 'rt') if is_gzip(filename) else open(filename)
 
 
-def make_json(path):
+def make_json(filename):
     json_str = ""
     bracket_found = False
-    with open_gz(path) as f:
+    with open_gz(filename) as f:
         for line in f.readlines():
             if line.rstrip('\n') == "],":
                 json_str += ","
@@ -95,30 +109,42 @@ def make_json(path):
     return json_str
 
 
-def main(args):
+def upload_file(filename, url, fileformat, starttime, endtime, delay):
     def upload_expand():
-        data = json.loads(make_json(args.input))
-        print(f"Uploading data from {args.start} to {args.end}...")
-        upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
+        data = json.loads(make_json(filename))
+        print(f"Uploading data from {starttime} to {endtime}...")
+        upload(url, data, get_ts(starttime), get_ts(endtime), delay)
 
     def upload_pack():
-        with open_gz(args.input) as f:
-            print(f"Uploading data from {args.start} to {args.end}...")
+        with open_gz(filename) as f:
+            print(f"Uploading data from {starttime} to {endtime}...")
             for line in f.readlines():
                 if line[-2] == ",":
                     data = json.loads(line[:-2])
                 else:
                     data = json.loads(line)
-                upload(args.url, data, get_ts(args.start), get_ts(args.end), args.delay)
-    # data = open(args.input).readlines()
-    # data = json.load(open(args.input))
-    # data = map(lambda x: json.loads(x)[0], data)
-    print(f"Reading {args.input}...")
-    if args.format == "expand":
+                upload(url, data, get_ts(starttime), get_ts(endtime), delay)
+
+    print(f"Reading {filename}...")
+    if fileformat == "expand":
         upload_expand()
     else:
         upload_pack()
     print(f"Completed")
+
+
+def is_log(filename):
+    return filename[-3:] == "log" or filename[-6:] == "log.gz"
+
+
+def main(args):
+    if path.isdir(args.input):
+        print(f"The input directory is {args.input}")
+        files = sorted([f.path for f in os.scandir(args.input) if is_log(f.name)], key=lambda x: os.stat(x).st_mtime)
+        for f in files:
+            upload_file(f, args.url, args.format, args.start, args.end, args.delay)
+    else:
+        upload_file(args.input, args.url, args.format, args.start, args.end, args.delay)
 
 
 if __name__ == "__main__":
