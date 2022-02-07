@@ -1,3 +1,20 @@
+"""
+The script uploads telemetry from the collector logs to Thingsboard.
+!!!Note!!!
+A log file contains data for the previous day:
+20211229-devices-name.log.gz contains data for 2021-12-28
+
+Usage:
+1. Upload all files matching dates
+python upload_arxiv.py --matchdate --start "2021-12-29 18:30:00" --end "2022-01-01 00:00:00" --delay 30
+       http://my-tb.org log_folder
+
+2. Upload single file
+python upload_arxiv.py --matchdate --start "2021-12-29 18:30:00" --end "2021-12-30 00:00:00" --delay 30
+       http://my-tb.org log_file
+
+"""
+
 from os import error
 import os
 from sys import stderr
@@ -72,7 +89,7 @@ def get_args():
                         the range given by --start and --end arguments. Used only input is a directory.",
                         action="store_true")
     parser.add_argument('url', help="TB host url")
-    parser.add_argument('input', help="File with json data to upload.")
+    parser.add_argument('input', help="File with json data to upload or a directory where the files are stored.")
     return parser.parse_args()
 
 
@@ -141,7 +158,8 @@ TZ_MOSCOW = dt.timezone(dt.timedelta(hours=3), "UTC+03:00")
 
 def match_date(filename, starttime, endtime):
     """ Match the filename to the pattern YYYYmmdd*
-    Return True if the date YYYYmmdd in the filename is between starrtime and endtime, ends included.
+    Return True if the date YYYYmmdd in the filename is between the starrtime, and one day after the endtime,
+    ends included.
 
     >>> match_date("20210927-anytext.extension", datetime(2021,9,25), datetime(2021,9,27))
     True
@@ -149,6 +167,8 @@ def match_date(filename, starttime, endtime):
     False
     >>> match_date("20210927-anytext.extension", datetime(2021,9,24), datetime(2021,9,26))
     False
+    >>> match_date("20210927-anytext.extension", datetime(2021,9,25), datetime(2021,9,26))
+    True
     """
     def get_date(dtobj):
         return datetime(dtobj.year, dtobj.month, dtobj.day, tzinfo=dtobj.tzinfo)
